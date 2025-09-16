@@ -47,5 +47,9 @@ namespace Cerberus {
         ControlMode m_ControlMode = ControlMode::Camera;
         int m_PrevEscapeKeyState;
 
+        glm::vec3 m_ModelPosition = glm::vec3(0.0f);
+        glm::vec3 m_ModelRotation = glm::vec3(0.0f);
+        glm::vec3 m_ModelScale = glm::vec3(1.0f);
+
     };
 }

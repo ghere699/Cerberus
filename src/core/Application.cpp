@@ -1,5 +1,8 @@
 #include "Application.h"
 #include "../loaders/ObjLoader.h"
+#include "../loaders/GltfLoader.h"
+#include "../loaders/FbxLoader.h"
+#include "../loaders/StlLoader.h"
 
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
@@ -68,16 +71,36 @@ namespace Cerberus {
 		m_PathToLoad = path;
 	}
 
-	void Application::LoadModelFromFile(const std::string& path) {
-		std::cout << "Loading model: " << path << std::endl;
-		auto newMesh = ObjLoader::LoadModel(path);
-		if (newMesh) {
-			m_ModelMesh = std::move(newMesh);
-		}
-		else {
-			std::cerr << "Failed to load model from path: " << path << std::endl;
-		}
-	}
+    void Application::LoadModelFromFile(const std::string& path) {
+        std::cout << "Attempting to load model: " << path << std::endl;
+
+        std::unique_ptr<Mesh> newMesh = nullptr;
+        std::string extension = path.substr(path.find_last_of(".") + 1);
+
+        if (extension == "obj") {
+            newMesh = ObjLoader::LoadModel(path);
+        }
+        else if (extension == "glb") {
+            newMesh = GltfLoader::LoadModel(path);
+        }
+        else if (extension == "fbx") {
+            newMesh = FbxLoader::LoadModel(path);
+        }
+        else if (extension == "stl") {
+            newMesh = StlLoader::LoadModel(path);
+        }
+        else {
+            std::cerr << "Unsupported file format: " << extension << std::endl;
+            return;
+        }
+
+        if (newMesh) {
+            m_ModelMesh = std::move(newMesh);
+        }
+        else {
+            std::cerr << "Failed to load model from path: " << path << std::endl;
+        }
+    }
 
 	void Application::ProcessInput(float deltaTime) {
 		GLFWwindow* window = m_Window->GetNativeWindow();
@@ -154,21 +177,30 @@ namespace Cerberus {
             }
 
             {
-                ImGui::Begin("ImGui");
-                ImGui::Text("Press ESC to toggle between Camera and UI control.");
+                ImGui::Begin("Cerberus Controller");
                 ImGui::Separator();
 
                 ImGui::Text("Framerate: %.1f FPS", ImGui::GetIO().Framerate);
                 ImGui::Checkbox("Limit Framerate", &m_limitFps);
-                if (m_limitFps) {
-                    ImGui::SliderFloat("Max FPS", &m_maxFps, 30.0f, 240.0f);
-                }
+                // FPS slider ...
 
                 ImGui::Separator();
                 ImGui::Text("Camera Settings");
                 ImGui::SliderFloat("Movement Speed", &m_Camera->MovementSpeed, 1.0f, 20.0f);
                 ImGui::Separator();
 
+                ImGui::Text("Model Transform");
+                ImGui::DragFloat3("Position", glm::value_ptr(m_ModelPosition), 0.1f);
+                ImGui::SliderFloat3("Rotation (Degrees)", glm::value_ptr(m_ModelRotation), -180.0f, 180.0f);
+                ImGui::DragFloat3("Scale", glm::value_ptr(m_ModelScale), 0.05f);
+
+                if (ImGui::Button("Reset Transform")) {
+                    m_ModelPosition = glm::vec3(0.0f);
+                    m_ModelRotation = glm::vec3(0.0f);
+                    m_ModelScale = glm::vec3(1.0f);
+                }
+
+                ImGui::Separator();
                 if (ImGui::Button("Quit Application")) {
                     m_IsRunning = false;
                 }
@@ -187,11 +219,18 @@ namespace Cerberus {
             m_Shader->SetVec3("u_lightPos", m_Camera->Position);
             m_Shader->SetVec3("u_viewPos", m_Camera->Position);
 
+            glm::mat4 model = glm::mat4(1.0f);
+
+            model = glm::translate(model, m_ModelPosition);
+            model = glm::rotate(model, glm::radians(m_ModelRotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
+            model = glm::rotate(model, glm::radians(m_ModelRotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
+            model = glm::rotate(model, glm::radians(m_ModelRotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
+            model = glm::scale(model, m_ModelScale);
+
             // Set matrix uniforms
             float aspectRatio = static_cast<float>(m_Window->GetWidth()) / static_cast<float>(m_Window->GetHeight());
-            glm::mat4 projection = glm::perspective(glm::radians(m_Camera->Zoom), aspectRatio, 0.1f, 100.0f);
+            glm::mat4 projection = glm::perspective(glm::radians(m_Camera->Zoom), aspectRatio, 0.1f, 1000.0f);
             glm::mat4 view = m_Camera->GetViewMatrix();
-            glm::mat4 model = glm::mat4(1.0f);
 
             m_Shader->SetMat4("u_Projection", projection);
             m_Shader->SetMat4("u_View", view);
