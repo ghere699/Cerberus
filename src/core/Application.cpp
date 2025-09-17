@@ -44,7 +44,7 @@ namespace Cerberus {
 		camera_ = std::make_unique<Camera>(glm::vec3(0.0f, 0.0f, 3.0f));
 		shader_ = std::make_unique<Shader>("res/shaders/simple.vert", "res/shaders/simple.frag");
 		normalsShader_ = std::make_unique<Shader>("res/shaders/normals.vert", "res/shaders/normals.frag");
-		gizmo_  = std::make_unique<Gizmo>();
+		gizmo_ = std::make_unique<Gizmo>();
 		pivotVisualizer_ = std::make_unique<PivotVisualizer>();
 		grid_ = std::make_unique<Grid>();
 
@@ -78,35 +78,164 @@ namespace Cerberus {
 		std::unique_ptr<Mesh> newMesh = nullptr;
 		std::string extension = path.substr(path.find_last_of('.') + 1);
 
-        if (extension == "obj") {
-            newMesh = ObjLoader::LoadModel(path);
-        }
-        else if (extension == "glb") {
-            newMesh = GltfLoader::LoadModel(path);
-        }
-        else if (extension == "fbx") {
-            newMesh = FbxLoader::LoadModel(path);
-        }
-        else if (extension == "stl") {
-            newMesh = StlLoader::LoadModel(path);
-        }
+		if (extension == "obj") {
+			newMesh = ObjLoader::LoadModel(path);
+		}
+		else if (extension == "glb") {
+			newMesh = GltfLoader::LoadModel(path);
+		}
+		else if (extension == "fbx") {
+			newMesh = FbxLoader::LoadModel(path);
+		}
+		else if (extension == "stl") {
+			newMesh = StlLoader::LoadModel(path);
+		}
 		else {
 			std::cerr << "Unsupported file format: " << extension << std::endl;
 			return;
 		}
 
 		if (newMesh) {
-			pivotVisualizer_->UpdateSize(newMesh->boundingRadius_);
-			modelMesh_ = std::move(newMesh);
-			modelPosition_ = glm::vec3(0.0f);
-			modelRotation_ = glm::vec3(0.0f);
-			modelScale_ = glm::vec3(1.0f);
-			currentModelPath_ = path;
-			std::cout << "Model transform has been reset." << std::endl;
+			SceneObject newObject;
+			newObject.mesh = std::move(newMesh);
+			newObject.name = path.substr(path.find_last_of("/\\") + 1);
+			newObject.filePath = path;
+			glm::vec3 spawnPosition(0.0f);
+			if (!sceneObjects_.empty()) {
+				const SceneObject& lastObject = sceneObjects_.back();
+				float padding = 2.0f;
+				spawnPosition.x = lastObject.position.x +
+					lastObject.mesh->boundingRadius_ * lastObject.scale.x +
+					newObject.mesh->boundingRadius_ * newObject.scale.x +
+					padding;
+			}
+
+			newObject.position = spawnPosition;
+			newObject.initialPosition = spawnPosition;
+
+			sceneObjects_.push_back(std::move(newObject));
+			selectedObjectIndex_ = sceneObjects_.size() - 1;
+
+			pivotVisualizer_->UpdateSize(sceneObjects_.back().mesh->boundingRadius_);
+
+			std::cout << "Successfully added " << sceneObjects_.back().name << " to the scene." << std::endl;
 		}
+
 		else {
 			std::cerr << "Failed to load model from path: " << path << std::endl;
 		}
+
+
+	}
+
+	void Application::UIRender()
+	{
+		if (ImGui::BeginMainMenuBar()) {
+			if (ImGui::BeginMenu("File")) {
+				if (ImGui::MenuItem("Model Info")) {
+					showModelInfoWindow_ = true;
+				}
+				ImGui::Separator();
+				if (ImGui::MenuItem("Quit", "ESC")) {
+					isRunning_ = false;
+				}
+				ImGui::EndMenu();
+			}
+			ImGui::EndMainMenuBar();
+		}
+
+		if (showModelInfoWindow_) {
+			ImGui::Begin("Model Information", &showModelInfoWindow_);
+
+			if (selectedObjectIndex_ != -1 && selectedObjectIndex_ < sceneObjects_.size()) {
+				const SceneObject& selectedObject = sceneObjects_[selectedObjectIndex_];
+
+				ImGui::Text("File Path: %s", selectedObject.filePath.c_str());
+				ImGui::Separator();
+				ImGui::Text("Vertex Count: %zu", selectedObject.mesh->m_Vertices.size());
+				ImGui::Text("Index Count: %zu", selectedObject.mesh->m_Indices.size());
+				ImGui::Text("Triangle Count: %zu", selectedObject.mesh->m_Indices.size() / 3);
+			}
+			else {
+				ImGui::Text("No object selected.");
+			}
+
+			ImGui::Separator();
+			ImGui::Text("Camera Position: (%.2f, %.2f, %.2f)", camera_->Position.x, camera_->Position.y, camera_->Position.z);
+
+			ImGui::End();
+		}
+
+
+
+
+
+		ImGui::Begin("Cerberus");
+		ImGui::BeginChild("Hierarchy", ImVec2(ImGui::GetContentRegionAvail().x, 200), true, ImGuiWindowFlags_HorizontalScrollbar);
+
+		if (sceneObjects_.empty()) {
+			ImGui::Text("No objects in scene.");
+		}
+		else {
+			for (int i = 0; i < sceneObjects_.size(); ++i) {
+				if (ImGui::Selectable(sceneObjects_[i].name.c_str(), selectedObjectIndex_ == i)) {
+					selectedObjectIndex_ = i;
+					pivotVisualizer_->UpdateSize(sceneObjects_[i].mesh->boundingRadius_);
+				}
+			}
+		}
+		ImGui::EndChild();
+		ImGui::Separator();
+		ImGui::Text("Framerate: %.1f FPS", ImGui::GetIO().Framerate);
+		ImGui::Checkbox("Limit Framerate", &limitFps_);
+		if (limitFps_) {
+			ImGui::SliderFloat("Max FPS", &maxFps_, 30.0f, 240.0f);
+		}
+		ImGui::Separator();
+		ImGui::Text("Camera Settings");
+		ImGui::SliderFloat("Movement Speed", &camera_->MovementSpeed, 1.0f, 100.0f);
+		if (camera_->MovementSpeed > 100)
+			camera_->MovementSpeed = 100;
+		ImGui::Text("Render Settings");
+		ImGui::Separator();
+		ImGui::RadioButton("Solid", &renderMode_, 0); ImGui::SameLine();
+		ImGui::RadioButton("Wireframe", &renderMode_, 1); ImGui::SameLine();
+		ImGui::RadioButton("Points", &renderMode_, 2);
+		ImGui::Text("View Settings");
+		ImGui::Separator();
+		ImGui::Checkbox("Enable Culling", &enableCulling_);
+		ImGui::Checkbox("Show Face Normals", &showFaceNormals_);
+		ImGui::SameLine();
+		ImGui::Checkbox("Show Vertex Normals", &showVertexNormals_);
+		ImGui::Checkbox("Show Model Pivot", &showPivot_);
+
+		ImGui::Separator();
+		ImGui::Text("Model Transform");
+
+		if (selectedObjectIndex_ != -1 && selectedObjectIndex_ < sceneObjects_.size()) {
+			SceneObject& selectedObject = sceneObjects_[selectedObjectIndex_];
+
+			ImGui::Text("Editing: %s", selectedObject.name.c_str());
+
+			ImGui::DragFloat3("Position", glm::value_ptr(selectedObject.position), 0.1f);
+			ImGui::SliderFloat3("Rotation", glm::value_ptr(selectedObject.rotation), -180.0f, 180.0f);
+			ImGui::DragFloat3("Scale", glm::value_ptr(selectedObject.scale), 0.05f);
+
+			if (ImGui::Button("Reset Transform")) {
+				selectedObject.position = selectedObject.initialPosition;
+				selectedObject.rotation = glm::vec3(0.0f);
+				selectedObject.scale = glm::vec3(1.0f);
+			}
+		}
+		else {
+			ImGui::Text("No object selected.");
+		}
+
+		ImGui::Separator();
+		if (ImGui::Button("Quit Application")) {
+			isRunning_ = false;
+		}
+		ImGui::End();
 	}
 
 	void Application::ProcessInput(float deltaTime) {
@@ -128,6 +257,7 @@ namespace Cerberus {
 
 	void Application::Run() {
 		glEnable(GL_DEPTH_TEST);
+		ImGuiIO& io = ImGui::GetIO();
 
 		while (isRunning_) {
 			float currentFrame = static_cast<float>(glfwGetTime());
@@ -149,6 +279,8 @@ namespace Cerberus {
 
 			ProcessInput(deltaTime_);
 
+			bool isCameraActive = (controlMode_ == ControlMode::Camera) && !io.WantCaptureMouse;
+
 			if (controlMode_ == ControlMode::Camera) {
 				glfwSetInputMode(window_->GetNativeWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 				double xpos, ypos;
@@ -166,139 +298,79 @@ namespace Cerberus {
 				firstMouse_ = true;
 			}
 
-			{
-				if (ImGui::BeginMainMenuBar()) {
-					if (ImGui::BeginMenu("File")) {
-						if (ImGui::MenuItem("Model Info")) {
-							showModelInfoWindow_ = true;
-						}
-						ImGui::Separator();
-						if (ImGui::MenuItem("Quit", "ESC")) {
-							isRunning_ = false;
-						}
-						ImGui::EndMenu();
-					}
-					ImGui::EndMainMenuBar();
-				}
 
-				if (showModelInfoWindow_) {
-					ImGui::Begin("Model Information", &showModelInfoWindow_);
-					if (modelMesh_) {
-						ImGui::Text("File Path: %s", currentModelPath_.c_str());
-						ImGui::Separator();
-						// Use %zu for size_t, which is the type of vector::size()
-						ImGui::Text("Vertex Count: %zu", modelMesh_->m_Vertices.size());
-						ImGui::Text("Index Count: %zu", modelMesh_->m_Indices.size());
-						ImGui::Text("Triangle Count: %zu", modelMesh_->m_Indices.size() / 3);
-						ImGui::Text("Camera Position: (%.2f, %.2f, %.2f)", camera_->Position.x, camera_->Position.y, camera_->Position.z);
-					}
-					else {
-						ImGui::Text("No model is currently loaded.");
-					}
-					ImGui::End();
-				}
+			UIRender();
 
-			}
-
-			{
-				ImGui::Begin("Cerberus");
-				ImGui::Separator();
-				ImGui::Text("Framerate: %.1f FPS", ImGui::GetIO().Framerate);
-				ImGui::Checkbox("Limit Framerate", &limitFps_);
-				if (limitFps_) {
-					ImGui::SliderFloat("Max FPS", &maxFps_, 30.0f, 240.0f);
-				}
-				ImGui::Separator();
-				ImGui::Text("Camera Settings");
-				ImGui::SliderFloat("Movement Speed", &camera_->MovementSpeed, 1.0f, 100.0f);
-				if (camera_->MovementSpeed > 100)
-					camera_->MovementSpeed = 100;
-				ImGui::Text("Render Settings");
-				ImGui::Separator();
-				ImGui::RadioButton("Solid", &renderMode_, 0); ImGui::SameLine();
-				ImGui::RadioButton("Wireframe", &renderMode_, 1); ImGui::SameLine();
-				ImGui::RadioButton("Points", &renderMode_, 2);
-				ImGui::Text("View Settings");
-				ImGui::Separator();
-				ImGui::Checkbox("Enable Culling", &enableCulling_);
-				ImGui::Checkbox("Show Face Normals", &showFaceNormals_);
-				ImGui::SameLine();
-				ImGui::Checkbox("Show Vertex Normals", &showVertexNormals_);
-				ImGui::Checkbox("Show Model Pivot", &showPivot_);
-
-				ImGui::Separator();
-				ImGui::Text("Model Transform");
-				ImGui::DragFloat3("Position", glm::value_ptr(modelPosition_), 0.1f);
-				ImGui::SliderFloat3("Rotation (Degrees)", glm::value_ptr(modelRotation_), -180.0f, 180.0f);
-				ImGui::DragFloat3("Scale", glm::value_ptr(modelScale_), 0.05f);
-				if (ImGui::Button("Reset Transform")) {
-					modelPosition_ = glm::vec3(0.0f);
-					modelRotation_ = glm::vec3(0.0f);
-					modelScale_ = glm::vec3(1.0f);
-				}
-				ImGui::Separator();
-				if (ImGui::Button("Quit Application")) {
-					isRunning_ = false;
-				}
-				ImGui::End();
-			}
 
 			float aspectRatio = static_cast<float>(window_->GetWidth()) / static_cast<float>(window_->GetHeight());
 			glm::mat4 projection = glm::perspective(glm::radians(camera_->Zoom), aspectRatio, 0.1f, 1000.0f);
 			glm::mat4 view = camera_->GetViewMatrix();
-			glm::mat4 model = glm::mat4(1.0f);
-			model = glm::translate(model, modelPosition_);
-			model = glm::rotate(model, glm::radians(modelRotation_.x), glm::vec3(1.0f, 0.0f, 0.0f));
-			model = glm::rotate(model, glm::radians(modelRotation_.y), glm::vec3(0.0f, 1.0f, 0.0f));
-			model = glm::rotate(model, glm::radians(modelRotation_.z), glm::vec3(0.0f, 0.0f, 1.0f));
-			model = glm::scale(model, modelScale_);
 
 			glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 			grid_->Draw(view, projection, camera_->Position);
 
-			if (modelMesh_) {
-				if (enableCulling_) glEnable(GL_CULL_FACE);
-				else glDisable(GL_CULL_FACE);
+			for (int i = 0; i < sceneObjects_.size(); ++i) {
+				const auto& sceneObject = sceneObjects_[i];
 
-				if (renderMode_ == 0) glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-				else if (renderMode_ == 1) glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-				else { glPolygonMode(GL_FRONT_AND_BACK, GL_POINT); glPointSize(3.0f); }
+				glm::mat4 model = glm::mat4(1.0f);
+				model = glm::translate(model, sceneObject.position);
+				model = glm::rotate(model, glm::radians(sceneObject.rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
+				model = glm::rotate(model, glm::radians(sceneObject.rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
+				model = glm::rotate(model, glm::radians(sceneObject.rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
+				model = glm::scale(model, sceneObject.scale);
+
+				if (i == selectedObjectIndex_) {
+					if (enableCulling_) glEnable(GL_CULL_FACE); else glDisable(GL_CULL_FACE);
+					if (renderMode_ == 0) glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+					else if (renderMode_ == 1) glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+					else { glPolygonMode(GL_FRONT_AND_BACK, GL_POINT); glPointSize(3.0f); }
+				}
+				else {
+					glDisable(GL_CULL_FACE);
+					glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+				}
 
 				shader_->Use();
-
 				shader_->SetVec3("u_objectColor", 1.0f, 1.0f, 1.0f);
 				shader_->SetVec3("u_lightColor", 1.0f, 1.0f, 1.0f);
 				shader_->SetVec3("u_lightPos", camera_->Position);
 				shader_->SetVec3("u_viewPos", camera_->Position);
-				shader_->SetMat4("u_Projection", projection);
-				shader_->SetMat4("u_View", view);
 				shader_->SetMat4("u_Model", model);
-
-				modelMesh_->Draw(*shader_);
+				shader_->SetMat4("u_View", view);
+				shader_->SetMat4("u_Projection", projection);
+				sceneObject.mesh->Draw(*shader_);
 			}
 
-			if (showFaceNormals_ && modelMesh_) {
-				normalsShader_->Use();
-				normalsShader_->SetMat4("u_Projection", projection);
-				normalsShader_->SetMat4("u_View", view);
-				normalsShader_->SetMat4("u_Model", model);
-				modelMesh_->DrawFaceNormals();
-			}
+			if (selectedObjectIndex_ != -1 && selectedObjectIndex_ < sceneObjects_.size()) {
+				const SceneObject& selectedObject = sceneObjects_[selectedObjectIndex_];
 
-			if (showVertexNormals_ && modelMesh_) {
-				normalsShader_->Use();
-				normalsShader_->SetMat4("u_Projection", projection);
-				normalsShader_->SetMat4("u_View", view);
-				normalsShader_->SetMat4("u_Model", model);
-				modelMesh_->DrawVertexNormals();
-			}
+				glm::mat4 selectedModelMatrix = glm::mat4(1.0f);
+				selectedModelMatrix = glm::translate(selectedModelMatrix, selectedObject.position);
+				selectedModelMatrix = glm::rotate(selectedModelMatrix, glm::radians(selectedObject.rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
+				selectedModelMatrix = glm::rotate(selectedModelMatrix, glm::radians(selectedObject.rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
+				selectedModelMatrix = glm::rotate(selectedModelMatrix, glm::radians(selectedObject.rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
+				selectedModelMatrix = glm::scale(selectedModelMatrix, selectedObject.scale);
 
-			if (showPivot_ && modelMesh_) {
-				pivotVisualizer_->Draw(model, view, projection);
+				if (showPivot_) {
+					pivotVisualizer_->Draw(selectedModelMatrix, view, projection);
+				}
+				if (showFaceNormals_) {
+					normalsShader_->Use();
+					normalsShader_->SetMat4("u_Model", selectedModelMatrix);
+					normalsShader_->SetMat4("u_View", view);
+					normalsShader_->SetMat4("u_Projection", projection);
+					selectedObject.mesh->DrawFaceNormals();
+				}
+				if (showVertexNormals_) {
+					normalsShader_->Use();
+					normalsShader_->SetMat4("u_Model", selectedModelMatrix);
+					normalsShader_->SetMat4("u_View", view);
+					normalsShader_->SetMat4("u_Projection", projection);
+					selectedObject.mesh->DrawVertexNormals();
+				}
 			}
-
 
 			gizmo_->Draw(view, window_->GetWidth(), window_->GetHeight());
 
