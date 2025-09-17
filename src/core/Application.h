@@ -1,10 +1,12 @@
 #pragma once
 
-#include "Window.h"
 #include "../graphics/Shader.h"
 #include "../graphics/Mesh.h"
 #include "../graphics/Camera.h"
 #include "../graphics/Gizmo.h"
+#include "../graphics/Pivot.h"
+#include "../graphics/Grid.h"
+#include "Window.h"
 #include <memory>
 #include <string>
 
@@ -30,9 +32,12 @@ namespace Cerberus {
 
         std::unique_ptr<Window> window_;
         std::unique_ptr<Shader> shader_;
+        std::unique_ptr<Shader> normalsShader_;
         std::unique_ptr<Mesh>   modelMesh_;
         std::unique_ptr<Camera> camera_;
         std::unique_ptr<Gizmo> gizmo_;
+        std::unique_ptr<PivotVisualizer> pivotVisualizer_;
+        std::unique_ptr<Grid> grid_;
 
         bool isRunning_ = true;
 
@@ -59,5 +64,8 @@ namespace Cerberus {
         std::string currentModelPath_ = "None";
         int renderMode_ = 0;
         bool enableCulling_ = false;
+        bool showFaceNormals_ = false;
+        bool showVertexNormals_ = false;
+        bool showPivot_ = false;
     };
 }

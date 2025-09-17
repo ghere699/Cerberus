@@ -52,18 +52,15 @@ namespace Cerberus {
         glClear(GL_DEPTH_BUFFER_BIT);
 
         glm::mat4 gizmoRotation = glm::mat4(glm::mat3(cameraView));
-
         glm::mat4 gizmoTranslation = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -3.0f));
-
         glm::mat4 gizmoView = gizmoTranslation * gizmoRotation;
-
         glm::mat4 gizmoProjection = glm::perspective(glm::radians(45.0f), 1.0f, 0.1f, 100.0f);
+        glm::mat4 mvp = gizmoProjection * gizmoView;
 
         glLineWidth(3.0f);
 
         shader_->Use();
-        shader_->SetMat4("u_View", gizmoView);
-        shader_->SetMat4("u_Projection", gizmoProjection);
+        shader_->SetMat4("u_MVP", mvp);
 
         glBindVertexArray(VAO_);
         glDrawArrays(GL_LINES, 0, 6);

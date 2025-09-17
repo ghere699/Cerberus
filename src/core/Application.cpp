@@ -43,7 +43,10 @@ namespace Cerberus {
 		window_ = std::make_unique<Window>(800, 600, "Cerberus Project");
 		camera_ = std::make_unique<Camera>(glm::vec3(0.0f, 0.0f, 3.0f));
 		shader_ = std::make_unique<Shader>("res/shaders/simple.vert", "res/shaders/simple.frag");
+		normalsShader_ = std::make_unique<Shader>("res/shaders/normals.vert", "res/shaders/normals.frag");
 		gizmo_  = std::make_unique<Gizmo>();
+		pivotVisualizer_ = std::make_unique<PivotVisualizer>();
+		grid_ = std::make_unique<Grid>();
 
 		glfwSetInputMode(window_->GetNativeWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 		glfwSetDropCallback(window_->GetNativeWindow(), drop_callback);
@@ -93,6 +96,7 @@ namespace Cerberus {
 		}
 
 		if (newMesh) {
+			pivotVisualizer_->UpdateSize(newMesh->boundingRadius_);
 			modelMesh_ = std::move(newMesh);
 			modelPosition_ = glm::vec3(0.0f);
 			modelRotation_ = glm::vec3(0.0f);
@@ -206,13 +210,22 @@ namespace Cerberus {
 				}
 				ImGui::Separator();
 				ImGui::Text("Camera Settings");
-				ImGui::SliderFloat("Movement Speed", &camera_->MovementSpeed, 1.0f, 20.0f);
+				ImGui::SliderFloat("Movement Speed", &camera_->MovementSpeed, 1.0f, 100.0f);
+				if (camera_->MovementSpeed > 100)
+					camera_->MovementSpeed = 100;
 				ImGui::Text("Render Settings");
 				ImGui::Separator();
 				ImGui::RadioButton("Solid", &renderMode_, 0); ImGui::SameLine();
 				ImGui::RadioButton("Wireframe", &renderMode_, 1); ImGui::SameLine();
 				ImGui::RadioButton("Points", &renderMode_, 2);
-				ImGui::Checkbox("Back-face Culling", &enableCulling_);
+				ImGui::Text("View Settings");
+				ImGui::Separator();
+				ImGui::Checkbox("Enable Culling", &enableCulling_);
+				ImGui::Checkbox("Show Face Normals", &showFaceNormals_);
+				ImGui::SameLine();
+				ImGui::Checkbox("Show Vertex Normals", &showVertexNormals_);
+				ImGui::Checkbox("Show Model Pivot", &showPivot_);
+
 				ImGui::Separator();
 				ImGui::Text("Model Transform");
 				ImGui::DragFloat3("Position", glm::value_ptr(modelPosition_), 0.1f);
@@ -230,35 +243,9 @@ namespace Cerberus {
 				ImGui::End();
 			}
 
-			glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
-			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-			if (enableCulling_) {
-				glEnable(GL_CULL_FACE);
-			}
-			else {
-				glDisable(GL_CULL_FACE);
-			}
-
-			if (renderMode_ == 0) {
-				glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-			}
-			else if (renderMode_ == 1) {
-				glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-			}
-			else { 
-				glPolygonMode(GL_FRONT_AND_BACK, GL_POINT);
-				glPointSize(3.0f);
-			}
-
-			shader_->Use();
-
-			shader_->SetInt("u_renderMode", renderMode_);
-			shader_->SetVec3("u_objectColor", 1.0f, 1.0f, 1.0f);
-			shader_->SetVec3("u_lightColor", 1.0f, 1.0f, 1.0f);
-			shader_->SetVec3("u_lightPos", camera_->Position);
-			shader_->SetVec3("u_viewPos", camera_->Position);
-
+			float aspectRatio = static_cast<float>(window_->GetWidth()) / static_cast<float>(window_->GetHeight());
+			glm::mat4 projection = glm::perspective(glm::radians(camera_->Zoom), aspectRatio, 0.1f, 1000.0f);
+			glm::mat4 view = camera_->GetViewMatrix();
 			glm::mat4 model = glm::mat4(1.0f);
 			model = glm::translate(model, modelPosition_);
 			model = glm::rotate(model, glm::radians(modelRotation_.x), glm::vec3(1.0f, 0.0f, 0.0f));
@@ -266,17 +253,52 @@ namespace Cerberus {
 			model = glm::rotate(model, glm::radians(modelRotation_.z), glm::vec3(0.0f, 0.0f, 1.0f));
 			model = glm::scale(model, modelScale_);
 
-			float aspectRatio = static_cast<float>(window_->GetWidth()) / static_cast<float>(window_->GetHeight());
-			glm::mat4 projection = glm::perspective(glm::radians(camera_->Zoom), aspectRatio, 0.1f, 1000.0f);
-			glm::mat4 view = camera_->GetViewMatrix();
+			glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-			shader_->SetMat4("u_Projection", projection);
-			shader_->SetMat4("u_View", view);
-			shader_->SetMat4("u_Model", model);
+			grid_->Draw(view, projection, camera_->Position);
 
 			if (modelMesh_) {
+				if (enableCulling_) glEnable(GL_CULL_FACE);
+				else glDisable(GL_CULL_FACE);
+
+				if (renderMode_ == 0) glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+				else if (renderMode_ == 1) glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+				else { glPolygonMode(GL_FRONT_AND_BACK, GL_POINT); glPointSize(3.0f); }
+
+				shader_->Use();
+
+				shader_->SetVec3("u_objectColor", 1.0f, 1.0f, 1.0f);
+				shader_->SetVec3("u_lightColor", 1.0f, 1.0f, 1.0f);
+				shader_->SetVec3("u_lightPos", camera_->Position);
+				shader_->SetVec3("u_viewPos", camera_->Position);
+				shader_->SetMat4("u_Projection", projection);
+				shader_->SetMat4("u_View", view);
+				shader_->SetMat4("u_Model", model);
+
 				modelMesh_->Draw(*shader_);
 			}
+
+			if (showFaceNormals_ && modelMesh_) {
+				normalsShader_->Use();
+				normalsShader_->SetMat4("u_Projection", projection);
+				normalsShader_->SetMat4("u_View", view);
+				normalsShader_->SetMat4("u_Model", model);
+				modelMesh_->DrawFaceNormals();
+			}
+
+			if (showVertexNormals_ && modelMesh_) {
+				normalsShader_->Use();
+				normalsShader_->SetMat4("u_Projection", projection);
+				normalsShader_->SetMat4("u_View", view);
+				normalsShader_->SetMat4("u_Model", model);
+				modelMesh_->DrawVertexNormals();
+			}
+
+			if (showPivot_ && modelMesh_) {
+				pivotVisualizer_->Draw(model, view, projection);
+			}
+
 
 			gizmo_->Draw(view, window_->GetWidth(), window_->GetHeight());
 

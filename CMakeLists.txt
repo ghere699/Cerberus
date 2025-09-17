@@ -48,7 +48,7 @@ file(GLOB IMGUI_SOURCES
 list(APPEND PROJECT_SOURCES ${IMGUI_SOURCES})
 
 
-add_executable(Cerberus ${PROJECT_SOURCES} "src/loaders/StlLoader.h" "src/loaders/StlLoader.cpp"     "src/graphics/Gizmo.h" "src/graphics/Gizmo.cpp")
+add_executable(Cerberus ${PROJECT_SOURCES} "src/loaders/StlLoader.h" "src/loaders/StlLoader.cpp"     "src/graphics/Gizmo.h" "src/graphics/Gizmo.cpp" "src/graphics/Pivot.h" "src/graphics/Pivot.cpp" "src/graphics/Grid.h" "src/graphics/Grid.cpp")
 
 
 target_include_directories(Cerberus PUBLIC
