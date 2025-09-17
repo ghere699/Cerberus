@@ -10,12 +10,12 @@ namespace Cerberus {
     struct Vertex {
         glm::vec3 Position;
         glm::vec3 Normal;
-        // We will add Normals, TexCoords, etc. here later
+        glm::vec2 TexCoords;
+        //normal
     };
 
     class Mesh {
     public:
-        // Mesh Data
         std::vector<Vertex>       m_Vertices;
         std::vector<unsigned int> m_Indices;
 
@@ -23,7 +23,6 @@ namespace Cerberus {
         void Draw(Shader& shader);
 
     private:
-        // Render data
         unsigned int m_VAO, m_VBO, m_EBO;
         void SetupMesh();
     };

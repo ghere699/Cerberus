@@ -4,8 +4,10 @@
 #include "../graphics/Shader.h"
 #include "../graphics/Mesh.h"
 #include "../graphics/Camera.h"
+#include "../graphics/Gizmo.h"
 #include <memory>
 #include <string>
+
 
 enum class ControlMode {
     Camera,
@@ -24,32 +26,38 @@ namespace Cerberus {
 
     private:
         void ProcessInput(float deltaTime);
-        void LoadModelFromFile(const std::string& path); 
+        void LoadModelFromFile(const std::string& path);
 
-        std::unique_ptr<Window> m_Window;
-        std::unique_ptr<Shader> m_Shader;
-        std::unique_ptr<Mesh>   m_ModelMesh;
-        std::unique_ptr<Camera> m_Camera;
+        std::unique_ptr<Window> window_;
+        std::unique_ptr<Shader> shader_;
+        std::unique_ptr<Mesh>   modelMesh_;
+        std::unique_ptr<Camera> camera_;
+        std::unique_ptr<Gizmo> gizmo_;
 
-        bool m_IsRunning = true;
+        bool isRunning_ = true;
 
-        float m_DeltaTime = 0.0f;
-        float m_LastFrame = 0.0f;
+        float deltaTime_ = 0.0f;
+        float lastFrame_ = 0.0f;
 
-        float m_LastX = 400, m_LastY = 300;
-        bool m_FirstMouse = true;
+        float lastX_ = 400;
+        float lastY_ = 300;
+        bool firstMouse_ = true;
 
+        std::string pathToLoad_;
+        bool limitFps_ = true;
+        float maxFps_ = 144.0f;
 
-        std::string m_PathToLoad;
-        bool m_limitFps = true;
-        float m_maxFps = 144.0f;
+        ControlMode controlMode_;
+        int prevEscapeKeyState_;
 
-        ControlMode m_ControlMode = ControlMode::Camera;
-        int m_PrevEscapeKeyState;
+        // Model transform variables
+        glm::vec3 modelPosition_;
+        glm::vec3 modelRotation_;
+        glm::vec3 modelScale_;
 
-        glm::vec3 m_ModelPosition = glm::vec3(0.0f);
-        glm::vec3 m_ModelRotation = glm::vec3(0.0f);
-        glm::vec3 m_ModelScale = glm::vec3(1.0f);
-
+        bool showModelInfoWindow_ = false;
+        std::string currentModelPath_ = "None";
+        int renderMode_ = 0;
+        bool enableCulling_ = false;
     };
 }

@@ -16,7 +16,9 @@
 
 #include <chrono>
 #include <thread>
+#include <gtc/type_ptr.hpp>
 
+// Static instance pointer for C-style callbacks
 static Cerberus::Application* s_Instance = nullptr;
 
 void drop_callback(GLFWwindow* window, int count, const char* paths[])
@@ -29,53 +31,49 @@ void drop_callback(GLFWwindow* window, int count, const char* paths[])
 
 namespace Cerberus {
 
-	Application::Application() {
+	Application::Application()
+	{
 		s_Instance = this;
-        m_PrevEscapeKeyState = GLFW_RELEASE;
+		prevEscapeKeyState_ = GLFW_RELEASE;
 
 		if (!glfwInit()) {
 			throw std::runtime_error("Failed to initialize GLFW");
 		}
 
-		m_Window = std::make_unique<Window>(800, 600, "Cerberus Project");
+		window_ = std::make_unique<Window>(800, 600, "Cerberus Project");
+		camera_ = std::make_unique<Camera>(glm::vec3(0.0f, 0.0f, 3.0f));
+		shader_ = std::make_unique<Shader>("res/shaders/simple.vert", "res/shaders/simple.frag");
+		gizmo_  = std::make_unique<Gizmo>();
 
-		glfwSetInputMode(m_Window->GetNativeWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+		glfwSetInputMode(window_->GetNativeWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+		glfwSetDropCallback(window_->GetNativeWindow(), drop_callback);
 
-		glfwSetDropCallback(m_Window->GetNativeWindow(), drop_callback);
-		m_Camera = std::make_unique<Camera>(glm::vec3(0.0f, 0.0f, 3.0f));
 		LoadModelFromFile("res/models/cube.obj");
-		m_Shader = std::make_unique<Shader>("res/shaders/simple.vert", "res/shaders/simple.frag");
 
-		// --- IMGUI INITIALIZATION ---
 		IMGUI_CHECKVERSION();
 		ImGui::CreateContext();
-		ImGuiIO& io = ImGui::GetIO(); (void)io;
+		ImGui::GetIO();
 		ImGui::StyleColorsDark();
-
-		// Initialize backends
-		ImGui_ImplGlfw_InitForOpenGL(m_Window->GetNativeWindow(), true);
+		ImGui_ImplGlfw_InitForOpenGL(window_->GetNativeWindow(), true);
 		ImGui_ImplOpenGL3_Init("#version 330");
 	}
 
 	Application::~Application() {
-		// --- IMGUI SHUTDOWN ---
 		ImGui_ImplOpenGL3_Shutdown();
 		ImGui_ImplGlfw_Shutdown();
 		ImGui::DestroyContext();
-
 		glfwTerminate();
 	}
 
 	void Application::QueueModelLoad(const std::string& path) {
 		std::cout << "File dropped: " << path << std::endl;
-		m_PathToLoad = path;
+		pathToLoad_ = path;
 	}
 
-    void Application::LoadModelFromFile(const std::string& path) {
-        std::cout << "Attempting to load model: " << path << std::endl;
-
-        std::unique_ptr<Mesh> newMesh = nullptr;
-        std::string extension = path.substr(path.find_last_of(".") + 1);
+	void Application::LoadModelFromFile(const std::string& path) {
+		std::cout << "Attempting to load model: " << path << std::endl;
+		std::unique_ptr<Mesh> newMesh = nullptr;
+		std::string extension = path.substr(path.find_last_of('.') + 1);
 
         if (extension == "obj") {
             newMesh = ObjLoader::LoadModel(path);
@@ -89,171 +87,212 @@ namespace Cerberus {
         else if (extension == "stl") {
             newMesh = StlLoader::LoadModel(path);
         }
-        else {
-            std::cerr << "Unsupported file format: " << extension << std::endl;
-            return;
-        }
-
-        if (newMesh) {
-            m_ModelMesh = std::move(newMesh);
-        }
-        else {
-            std::cerr << "Failed to load model from path: " << path << std::endl;
-        }
-    }
-
-	void Application::ProcessInput(float deltaTime) {
-		GLFWwindow* window = m_Window->GetNativeWindow();
-
-		// --- ESC Key Toggles Control Mode ---
-		int currentEscapeState = glfwGetKey(window, GLFW_KEY_ESCAPE);
-		if (currentEscapeState == GLFW_RELEASE && m_PrevEscapeKeyState == GLFW_PRESS) {
-			if (m_ControlMode == ControlMode::Camera) {
-				m_ControlMode = ControlMode::UI;
-			}
-			else {
-				m_ControlMode = ControlMode::Camera;
-			}
+		else {
+			std::cerr << "Unsupported file format: " << extension << std::endl;
+			return;
 		}
-		m_PrevEscapeKeyState = currentEscapeState;
 
-		// --- WASD Movement only in Camera Mode ---
-		if (m_ControlMode == ControlMode::Camera) {
-			if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) m_Camera->ProcessKeyboard(FORWARD, deltaTime);
-			if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) m_Camera->ProcessKeyboard(BACKWARD, deltaTime);
-			if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) m_Camera->ProcessKeyboard(LEFT, deltaTime);
-			if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) m_Camera->ProcessKeyboard(RIGHT, deltaTime);
+		if (newMesh) {
+			modelMesh_ = std::move(newMesh);
+			modelPosition_ = glm::vec3(0.0f);
+			modelRotation_ = glm::vec3(0.0f);
+			modelScale_ = glm::vec3(1.0f);
+			currentModelPath_ = path;
+			std::cout << "Model transform has been reset." << std::endl;
+		}
+		else {
+			std::cerr << "Failed to load model from path: " << path << std::endl;
 		}
 	}
 
-    void Application::Run() {
-        glEnable(GL_DEPTH_TEST);
+	void Application::ProcessInput(float deltaTime) {
+		GLFWwindow* window = window_->GetNativeWindow();
 
-        while (m_IsRunning) {
-            float currentFrame = static_cast<float>(glfwGetTime());
-            m_DeltaTime = currentFrame - m_LastFrame;
-            m_LastFrame = currentFrame;
+		int currentEscapeState = glfwGetKey(window, GLFW_KEY_ESCAPE);
+		if (currentEscapeState == GLFW_RELEASE && prevEscapeKeyState_ == GLFW_PRESS) {
+			controlMode_ = (controlMode_ == ControlMode::Camera) ? ControlMode::UI : ControlMode::Camera;
+		}
+		prevEscapeKeyState_ = currentEscapeState;
 
-            // --- Check for new model to load ---
-            if (!m_PathToLoad.empty()) {
-                LoadModelFromFile(m_PathToLoad);
-                m_PathToLoad.clear();
-            }
+		if (controlMode_ == ControlMode::Camera) {
+			if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) camera_->ProcessKeyboard(FORWARD, deltaTime);
+			if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) camera_->ProcessKeyboard(BACKWARD, deltaTime);
+			if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) camera_->ProcessKeyboard(LEFT, deltaTime);
+			if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) camera_->ProcessKeyboard(RIGHT, deltaTime);
+		}
+	}
 
-            if (m_Window->ShouldClose()) {
-                m_IsRunning = false;
-            }
+	void Application::Run() {
+		glEnable(GL_DEPTH_TEST);
 
-            // --- Start new ImGui frame ---
-            ImGui_ImplOpenGL3_NewFrame();
-            ImGui_ImplGlfw_NewFrame();
-            ImGui::NewFrame();
+		while (isRunning_) {
+			float currentFrame = static_cast<float>(glfwGetTime());
+			deltaTime_ = currentFrame - lastFrame_;
+			lastFrame_ = currentFrame;
 
-            ProcessInput(m_DeltaTime); // Handles ESC toggle and WASD movement
+			if (!pathToLoad_.empty()) {
+				LoadModelFromFile(pathToLoad_);
+				pathToLoad_.clear();
+			}
 
-            if (m_ControlMode == ControlMode::Camera) {
-                // Camera Mode: Hide and lock cursor for camera control
-                glfwSetInputMode(m_Window->GetNativeWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+			if (window_->ShouldClose()) {
+				isRunning_ = false;
+			}
 
-                double xpos, ypos;
-                glfwGetCursorPos(m_Window->GetNativeWindow(), &xpos, &ypos);
+			ImGui_ImplOpenGL3_NewFrame();
+			ImGui_ImplGlfw_NewFrame();
+			ImGui::NewFrame();
 
-                if (m_FirstMouse) {
-                    m_LastX = xpos;
-                    m_LastY = ypos;
-                    m_FirstMouse = false;
-                }
+			ProcessInput(deltaTime_);
 
-                float xoffset = xpos - m_LastX;
-                float yoffset = m_LastY - ypos; // reversed since y-coordinates go from bottom to top
-                m_LastX = xpos;
-                m_LastY = ypos;
+			if (controlMode_ == ControlMode::Camera) {
+				glfwSetInputMode(window_->GetNativeWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+				double xpos, ypos;
+				glfwGetCursorPos(window_->GetNativeWindow(), &xpos, &ypos);
+				if (firstMouse_) {
+					lastX_ = xpos; lastY_ = ypos; firstMouse_ = false;
+				}
+				float xoffset = xpos - lastX_;
+				float yoffset = lastY_ - ypos;
+				lastX_ = xpos; lastY_ = ypos;
+				camera_->ProcessMouseMovement(xoffset, yoffset);
+			}
+			else {
+				glfwSetInputMode(window_->GetNativeWindow(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+				firstMouse_ = true;
+			}
 
-                m_Camera->ProcessMouseMovement(xoffset, yoffset);
-            }
-            else { 
-                glfwSetInputMode(m_Window->GetNativeWindow(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-                m_FirstMouse = true;
-            }
+			{
+				if (ImGui::BeginMainMenuBar()) {
+					if (ImGui::BeginMenu("File")) {
+						if (ImGui::MenuItem("Model Info")) {
+							showModelInfoWindow_ = true;
+						}
+						ImGui::Separator();
+						if (ImGui::MenuItem("Quit", "ESC")) {
+							isRunning_ = false;
+						}
+						ImGui::EndMenu();
+					}
+					ImGui::EndMainMenuBar();
+				}
 
-            {
-                ImGui::Begin("Cerberus Controller");
-                ImGui::Separator();
+				if (showModelInfoWindow_) {
+					ImGui::Begin("Model Information", &showModelInfoWindow_);
+					if (modelMesh_) {
+						ImGui::Text("File Path: %s", currentModelPath_.c_str());
+						ImGui::Separator();
+						// Use %zu for size_t, which is the type of vector::size()
+						ImGui::Text("Vertex Count: %zu", modelMesh_->m_Vertices.size());
+						ImGui::Text("Index Count: %zu", modelMesh_->m_Indices.size());
+						ImGui::Text("Triangle Count: %zu", modelMesh_->m_Indices.size() / 3);
+						ImGui::Text("Camera Position: (%.2f, %.2f, %.2f)", camera_->Position.x, camera_->Position.y, camera_->Position.z);
+					}
+					else {
+						ImGui::Text("No model is currently loaded.");
+					}
+					ImGui::End();
+				}
 
-                ImGui::Text("Framerate: %.1f FPS", ImGui::GetIO().Framerate);
-                ImGui::Checkbox("Limit Framerate", &m_limitFps);
-                // FPS slider ...
+			}
 
-                ImGui::Separator();
-                ImGui::Text("Camera Settings");
-                ImGui::SliderFloat("Movement Speed", &m_Camera->MovementSpeed, 1.0f, 20.0f);
-                ImGui::Separator();
+			{
+				ImGui::Begin("Cerberus");
+				ImGui::Separator();
+				ImGui::Text("Framerate: %.1f FPS", ImGui::GetIO().Framerate);
+				ImGui::Checkbox("Limit Framerate", &limitFps_);
+				if (limitFps_) {
+					ImGui::SliderFloat("Max FPS", &maxFps_, 30.0f, 240.0f);
+				}
+				ImGui::Separator();
+				ImGui::Text("Camera Settings");
+				ImGui::SliderFloat("Movement Speed", &camera_->MovementSpeed, 1.0f, 20.0f);
+				ImGui::Text("Render Settings");
+				ImGui::Separator();
+				ImGui::RadioButton("Solid", &renderMode_, 0); ImGui::SameLine();
+				ImGui::RadioButton("Wireframe", &renderMode_, 1); ImGui::SameLine();
+				ImGui::RadioButton("Points", &renderMode_, 2);
+				ImGui::Checkbox("Back-face Culling", &enableCulling_);
+				ImGui::Separator();
+				ImGui::Text("Model Transform");
+				ImGui::DragFloat3("Position", glm::value_ptr(modelPosition_), 0.1f);
+				ImGui::SliderFloat3("Rotation (Degrees)", glm::value_ptr(modelRotation_), -180.0f, 180.0f);
+				ImGui::DragFloat3("Scale", glm::value_ptr(modelScale_), 0.05f);
+				if (ImGui::Button("Reset Transform")) {
+					modelPosition_ = glm::vec3(0.0f);
+					modelRotation_ = glm::vec3(0.0f);
+					modelScale_ = glm::vec3(1.0f);
+				}
+				ImGui::Separator();
+				if (ImGui::Button("Quit Application")) {
+					isRunning_ = false;
+				}
+				ImGui::End();
+			}
 
-                ImGui::Text("Model Transform");
-                ImGui::DragFloat3("Position", glm::value_ptr(m_ModelPosition), 0.1f);
-                ImGui::SliderFloat3("Rotation (Degrees)", glm::value_ptr(m_ModelRotation), -180.0f, 180.0f);
-                ImGui::DragFloat3("Scale", glm::value_ptr(m_ModelScale), 0.05f);
+			glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-                if (ImGui::Button("Reset Transform")) {
-                    m_ModelPosition = glm::vec3(0.0f);
-                    m_ModelRotation = glm::vec3(0.0f);
-                    m_ModelScale = glm::vec3(1.0f);
-                }
+			if (enableCulling_) {
+				glEnable(GL_CULL_FACE);
+			}
+			else {
+				glDisable(GL_CULL_FACE);
+			}
 
-                ImGui::Separator();
-                if (ImGui::Button("Quit Application")) {
-                    m_IsRunning = false;
-                }
-                ImGui::End();
-            }
+			if (renderMode_ == 0) {
+				glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+			}
+			else if (renderMode_ == 1) {
+				glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+			}
+			else { 
+				glPolygonMode(GL_FRONT_AND_BACK, GL_POINT);
+				glPointSize(3.0f);
+			}
 
-            glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+			shader_->Use();
 
-            m_Shader->Use();
+			shader_->SetInt("u_renderMode", renderMode_);
+			shader_->SetVec3("u_objectColor", 1.0f, 1.0f, 1.0f);
+			shader_->SetVec3("u_lightColor", 1.0f, 1.0f, 1.0f);
+			shader_->SetVec3("u_lightPos", camera_->Position);
+			shader_->SetVec3("u_viewPos", camera_->Position);
 
-            // Set lighting and camera uniforms
-            m_Shader->SetVec3("u_objectColor", 1.0f, 1.0f, 1.0f);
-            m_Shader->SetVec3("u_lightColor", 1.0f, 1.0f, 1.0f);
-            m_Shader->SetVec3("u_lightPos", m_Camera->Position);
-            m_Shader->SetVec3("u_viewPos", m_Camera->Position);
+			glm::mat4 model = glm::mat4(1.0f);
+			model = glm::translate(model, modelPosition_);
+			model = glm::rotate(model, glm::radians(modelRotation_.x), glm::vec3(1.0f, 0.0f, 0.0f));
+			model = glm::rotate(model, glm::radians(modelRotation_.y), glm::vec3(0.0f, 1.0f, 0.0f));
+			model = glm::rotate(model, glm::radians(modelRotation_.z), glm::vec3(0.0f, 0.0f, 1.0f));
+			model = glm::scale(model, modelScale_);
 
-            glm::mat4 model = glm::mat4(1.0f);
+			float aspectRatio = static_cast<float>(window_->GetWidth()) / static_cast<float>(window_->GetHeight());
+			glm::mat4 projection = glm::perspective(glm::radians(camera_->Zoom), aspectRatio, 0.1f, 1000.0f);
+			glm::mat4 view = camera_->GetViewMatrix();
 
-            model = glm::translate(model, m_ModelPosition);
-            model = glm::rotate(model, glm::radians(m_ModelRotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
-            model = glm::rotate(model, glm::radians(m_ModelRotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
-            model = glm::rotate(model, glm::radians(m_ModelRotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
-            model = glm::scale(model, m_ModelScale);
+			shader_->SetMat4("u_Projection", projection);
+			shader_->SetMat4("u_View", view);
+			shader_->SetMat4("u_Model", model);
 
-            // Set matrix uniforms
-            float aspectRatio = static_cast<float>(m_Window->GetWidth()) / static_cast<float>(m_Window->GetHeight());
-            glm::mat4 projection = glm::perspective(glm::radians(m_Camera->Zoom), aspectRatio, 0.1f, 1000.0f);
-            glm::mat4 view = m_Camera->GetViewMatrix();
+			if (modelMesh_) {
+				modelMesh_->Draw(*shader_);
+			}
 
-            m_Shader->SetMat4("u_Projection", projection);
-            m_Shader->SetMat4("u_View", view);
-            m_Shader->SetMat4("u_Model", model);
+			gizmo_->Draw(view, window_->GetWidth(), window_->GetHeight());
 
-            if (m_ModelMesh) {
-                m_ModelMesh->Draw(*m_Shader);
-            }
+			ImGui::Render();
+			ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
-            ImGui::Render();
-            ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-
-            if (m_limitFps) {
-                float frameEndTime = static_cast<float>(glfwGetTime());
-                float workTime = frameEndTime - currentFrame;
-                float targetFrameTime = 1.0f / m_maxFps;
-                if (workTime < targetFrameTime) {
-                    auto sleepDuration = std::chrono::microseconds(static_cast<long long>((targetFrameTime - workTime) * 1000000.0f));
-                    std::this_thread::sleep_for(sleepDuration);
-                }
-            }
-
-            m_Window->SwapBuffersAndPollEvents();
-        }
+			if (limitFps_) {
+				float frameEndTime = static_cast<float>(glfwGetTime());
+				float workTime = frameEndTime - currentFrame;
+				float targetFrameTime = 1.0f / maxFps_;
+				if (workTime < targetFrameTime) {
+					auto sleepDuration = std::chrono::microseconds(static_cast<long long>((targetFrameTime - workTime) * 1000000.0f));
+					std::this_thread::sleep_for(sleepDuration);
+				}
+			}
+			window_->SwapBuffersAndPollEvents();
+		}
 	}
 }

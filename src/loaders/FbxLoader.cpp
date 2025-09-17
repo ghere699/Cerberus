@@ -56,13 +56,11 @@ namespace Cerberus {
     }
 
     void ProcessNode(FbxNode* node, std::vector<Vertex>& vertices, std::vector<unsigned int>& indices) {
-        // Process the mesh for this node, if it exists
         FbxMesh* mesh = node->GetMesh();
         if (mesh) {
             ProcessMesh(mesh, vertices, indices);
         }
 
-        // Recursively process all child nodes
         for (int i = 0; i < node->GetChildCount(); i++) {
             ProcessNode(node->GetChild(i), vertices, indices);
         }
@@ -75,15 +73,13 @@ namespace Cerberus {
         int firstVertexIndex = vertices.size();
 
         for (int i = 0; i < polygonCount; i++) {
-            for (int j = 0; j < 3; j++) { // We assume triangles
+            for (int j = 0; j < 3; j++) { 
                 int controlPointIndex = mesh->GetPolygonVertex(i, j);
 
                 Vertex vertex;
-                // Position
                 FbxVector4 pos = controlPoints[controlPointIndex];
                 vertex.Position = glm::vec3(pos[0], pos[1], pos[2]);
 
-                // Normal
                 FbxVector4 normal;
                 mesh->GetPolygonVertexNormal(i, j, normal);
                 vertex.Normal = glm::vec3(normal[0], normal[1], normal[2]);

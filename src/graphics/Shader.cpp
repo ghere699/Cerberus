@@ -79,6 +79,10 @@ namespace Cerberus {
         glUniform3f(glGetUniformLocation(m_ID, name.c_str()), v1, v2, v3);
     }
 
+    void Shader::SetInt(const std::string& name, int value) const {
+        glUniform1i(glGetUniformLocation(m_ID, name.c_str()), value);
+    }
+
     void Shader::SetFloat(const std::string& name, float value) const {
         glUniform1f(glGetUniformLocation(m_ID, name.c_str()), value);
     }
