@@ -8,11 +8,27 @@
 namespace Cerberus {
 
 	std::unique_ptr<Mesh> ObjLoader::LoadModel(const std::string& path) {
-		std::ifstream file(path);
+		std::ifstream file(path, std::ios::ate | std::ios::binary);
+
 		if (!file.is_open()) {
 			std::cerr << "Error: Could not open model file: " << path << std::endl;
 			return nullptr;
 		}
+
+		size_t fileSize = file.tellg();
+		std::vector<char> buffer(fileSize);
+
+		file.seekg(0);
+		file.read(buffer.data(), fileSize);
+		file.close();
+
+		return LoadModelFromMemory(buffer.data(), buffer.size());
+	}
+
+
+	std::unique_ptr<Mesh> ObjLoader::LoadModelFromMemory(const char* data, size_t size) {
+		std::string content(data, size);
+		std::stringstream stream(content);
 
 		std::vector<Vertex> vertices;
 		std::vector<unsigned int> indices;
@@ -23,7 +39,7 @@ namespace Cerberus {
 		std::map<std::string, unsigned int> vertexCache;
 
 		std::string line;
-		while (std::getline(file, line)) {
+		while (std::getline(stream, line)) {
 			std::stringstream ss(line);
 			std::string prefix;
 			ss >> prefix;
@@ -90,7 +106,8 @@ namespace Cerberus {
 			}
 		}
 
-		std::cout << "Loaded OBJ model: " << path << " with " << vertices.size() << " unique vertices." << std::endl;
+		std::cout << "Parsed OBJ model from memory." << std::endl;
 		return std::make_unique<Mesh>(vertices, indices);
 	}
+
 }

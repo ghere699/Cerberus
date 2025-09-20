@@ -34,14 +34,20 @@ namespace Cerberus {
     public:
         Application();
         ~Application();
-        void Run();
 
         void QueueModelLoad(const std::string& path);
+        void Run();
 
     private:
         void ProcessInput(float deltaTime);
         void LoadModelFromFile(const std::string& path);
+        void LoadDefaultModel();
+
+        void UpdateWindowState();
+        void HandleInput();
+        void Render();
         void UIRender();
+        bool isObjectValid() const;
 
         std::unique_ptr<Window> window_;
         std::unique_ptr<Shader> shader_;
@@ -75,6 +81,8 @@ namespace Cerberus {
         glm::vec3 modelPosition_;
         glm::vec3 modelRotation_;
         glm::vec3 modelScale_;
+
+        bool deleteRequest = false;
 
         bool showModelInfoWindow_ = false;
         int renderMode_ = 0;
