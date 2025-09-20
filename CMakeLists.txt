@@ -57,6 +57,7 @@ target_include_directories(Cerberus PUBLIC
     "${CMAKE_SOURCE_DIR}/vendor/glm"
     "${CMAKE_SOURCE_DIR}/vendor/imgui"
     "${CMAKE_SOURCE_DIR}/vendor/tinygltf"
+    "${CMAKE_SOURCE_DIR}/vendor/tinyobj"
     ${FBX_INCLUDE_DIR}
 )
 
