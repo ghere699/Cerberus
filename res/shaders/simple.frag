@@ -8,34 +8,45 @@ in vec2 TexCoords;
 uniform vec3 u_lightColor;
 uniform vec3 u_lightPos;
 uniform vec3 u_viewPos;
-// uniform sampler2D u_diffuseTexture; 
+
+// --- ADD THIS UNIFORM ---
+uniform vec3 u_objectColor; // The dynamic color from the UI
+uniform float u_shininess;
+uniform float u_ambientStrength;
+uniform float u_specularStrength;
 
 // 0 = Solid, 1 = Wireframe, 2 = Points
 uniform int u_renderMode; 
 
 void main()
 {
-    if (u_renderMode == 0) 
+    if (u_renderMode == 0) // Lit, solid rendering
     {
-        vec3 texColor = vec3(1.0, 1.0, 1.0);
+        vec3 surfaceColor = u_objectColor;
 
-        float ambientStrength = 0.1;
-        vec3 ambient = ambientStrength * u_lightColor;
+        // --- Lighting calculations ---
+        vec3 ambient = u_ambientStrength * u_lightColor;
+        
+        // --- Diffuse Calculation (MODIFIED) ---
         vec3 norm = normalize(Normal);
         vec3 lightDir = normalize(u_lightPos - FragPos);
         float diff = max(dot(norm, lightDir), 0.0);
-        vec3 diffuse = diff * u_lightColor;
-        float specularStrength = 0.5;
+        float diffuseStrength = 0.8; // <-- ADD THIS: Reduce base brightness to 80%
+        vec3 diffuse = diffuseStrength * diff * u_lightColor;
+
+        // --- Specular Calculation (MODIFIED) ---
+        float specularStrength = 1.0; // <-- CHANGE THIS: Increase highlight strength from 0.5 to 1.0
         vec3 viewDir = normalize(u_viewPos - FragPos);
         vec3 reflectDir = reflect(-lightDir, norm);
-        float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32);
-        vec3 specular = specularStrength * spec * u_lightColor;
+        float spec = pow(max(dot(viewDir, reflectDir), 0.0), u_shininess);
+        vec3 specular = u_specularStrength * spec * u_lightColor;
 
-        vec3 result = (ambient + diffuse + specular) * texColor;
+        vec3 result = (ambient + diffuse + specular) * surfaceColor;
         FragColor = vec4(result, 1.0);
     }
-    else 
+    else // Wireframe or Point rendering
     {
+        // Keep the hard-coded color for these modes
         FragColor = vec4(0.0, 1.0, 0.4, 1.0); 
     }
 }

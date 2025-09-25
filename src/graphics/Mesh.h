@@ -18,6 +18,8 @@ namespace Cerberus {
         std::vector<Vertex>       m_Vertices;
         std::vector<unsigned int> m_Indices;
         float boundingRadius_;
+        glm::vec3 boundingBoxMin_;
+        glm::vec3 boundingBoxMax_;
 
         Mesh(const std::vector<Vertex>& vertices, const std::vector<unsigned int>& indices);
         void Draw(Shader& shader);

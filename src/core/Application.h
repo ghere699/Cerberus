@@ -24,8 +24,12 @@ struct SceneObject {
     glm::vec3 rotation;
     glm::vec3 scale;
     glm::vec3 initialPosition;
+    glm::vec3 color;
+    float shininess;
+    float specularStrength;
+    float ambientStrength;
 
-    SceneObject() : position(0.0f), rotation(0.0f), scale(1.0f) {}
+    SceneObject() : position(0.0f), rotation(0.0f), scale(1.0f), color(1.0f), shininess(32.0f), ambientStrength(0.1f), specularStrength(1.0f) {}
 };
 
 namespace Cerberus {

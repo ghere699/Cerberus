@@ -231,7 +231,11 @@ namespace Cerberus {
 			}
 
 			shader_->Use();
-			shader_->SetVec3("u_objectColor", 1.0f, 1.0f, 1.0f);
+			shader_->SetVec3("u_objectColor", sceneObject.color);
+			shader_->SetFloat("u_shininess", sceneObject.shininess);
+			shader_->SetFloat("u_specularStrength", sceneObject.specularStrength);
+			shader_->SetFloat("u_ambientStrength", sceneObject.ambientStrength);
+
 			shader_->SetVec3("u_lightColor", 1.0f, 1.0f, 1.0f);
 			shader_->SetVec3("u_lightPos", camera_->Position);
 			shader_->SetVec3("u_viewPos", camera_->Position);
@@ -371,15 +375,51 @@ namespace Cerberus {
 			ImGui::SameLine();
 			ImGui::Checkbox("Show Vertex Normals", &showVertexNormals_);
 			ImGui::Checkbox("Show Model Pivot", &showPivot_);
-
 			ImGui::Separator();
-			ImGui::Text("Model Transform");
 
 			if (isObjectValid()) {
 				SceneObject& selectedObject = sceneObjects_[selectedObjectIndex_];
 
 				ImGui::Text("Editing: %s", selectedObject.name.c_str());
+				ImGui::SameLine();
+				ImGui::Text(" -> ");
+				ImGui::SameLine();
+				ImGui::SameLine();
+				if (ImGui::Button("Jump To")) {
+					const SceneObject& selectedObject = sceneObjects_[selectedObjectIndex_];
+					glm::vec3 localSize = selectedObject.mesh->boundingBoxMax_ - selectedObject.mesh->boundingBoxMin_;
+					glm::vec3 worldSize = localSize * selectedObject.scale;
+					glm::vec3 localCenter = (selectedObject.mesh->boundingBoxMin_ + selectedObject.mesh->boundingBoxMax_) / 2.0f;
+					glm::vec3 worldCenter = selectedObject.position + (localCenter * selectedObject.scale);
+					float longestSide = std::max({ worldSize.x, worldSize.y, worldSize.z });
+					float fovRadians = glm::radians(camera_->Zoom);
+					float idealDistance = (longestSide * 0.5f) / tan(fovRadians * 0.5f);
+					idealDistance *= 1.5f;
+					const float maxFocusDistance = 50.0f;
+					float finalDistance = std::min(idealDistance, maxFocusDistance);
+					const float minFocusDistance = 2.0f;
+					finalDistance = std::max(finalDistance, minFocusDistance);
+					glm::vec3 direction = glm::normalize(glm::vec3(0.5f, 0.4f, 1.0f));
+					glm::vec3 newCameraPos = worldCenter - direction * finalDistance; 
+					camera_->SetPositionAndTarget(newCameraPos, worldCenter);
+				}
+				ImGui::Text("Model Material");
 
+				ImGui::ColorEdit3("Model Color", glm::value_ptr(selectedObject.color));
+				ImGui::SliderFloat("Shininess", &selectedObject.shininess, 2.0f, 256.0f);
+				ImGui::SliderFloat("Specular Strength", &selectedObject.specularStrength, 0.0f, 2.0f);
+				ImGui::SliderFloat("Ambient Strength", &selectedObject.ambientStrength, 0.0f, 1.0f);
+
+				if (ImGui::Button("Reset Material")) {
+					SceneObject defaultMaterial;
+					selectedObject.color = defaultMaterial.color;
+					selectedObject.shininess = defaultMaterial.shininess;
+					selectedObject.specularStrength = defaultMaterial.specularStrength;
+					selectedObject.ambientStrength = defaultMaterial.ambientStrength;
+				}
+
+				ImGui::Separator();
+				ImGui::Text("Model Transform");
 				ImGui::DragFloat3("Position", glm::value_ptr(selectedObject.position), 0.1f);
 				ImGui::SliderFloat3("Rotation", glm::value_ptr(selectedObject.rotation), -180.0f, 180.0f);
 				ImGui::DragFloat3("Scale", glm::value_ptr(selectedObject.scale), 0.05f);

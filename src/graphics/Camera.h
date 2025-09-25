@@ -40,6 +40,7 @@ namespace Cerberus {
         glm::mat4 GetViewMatrix();
         void ProcessKeyboard(Camera_Movement direction, float deltaTime);
         void ProcessMouseMovement(float xoffset, float yoffset, bool constrainPitch = true);
+        void SetPositionAndTarget(const glm::vec3& position, const glm::vec3& target);
 
     private:
         void updateCameraVectors();
