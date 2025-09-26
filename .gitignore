@@ -16,7 +16,6 @@
 *.pch
 
 # Compiled Dynamic libraries
-*.so
 *.dylib
 
 # Fortran module files
@@ -26,7 +25,6 @@
 # Compiled Static libraries
 *.lai
 *.la
-*.a
 
 # Executables
 *.exe
@@ -123,6 +121,9 @@ bld/
 [Oo]bj/
 [Ll]og/
 [Ll]ogs/
+
+!vendor/fbxsdk/linux/lib/gcc/release
+!vendor/fbxsdk/linux/lib/gcc/debug
 
 # Visual Studio 2015/2017 cache/options directory
 .vs/
