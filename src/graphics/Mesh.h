@@ -27,7 +27,7 @@ namespace Cerberus {
         void DrawVertexNormals();
 
     private:
-        unsigned int m_VAO, m_VBO, m_EBO;
+        unsigned int VAO_, VBO_, EBO_;
         void SetupMesh();
         void SetupNormals();
         void SetupVertexNormals();

@@ -37,15 +37,15 @@ namespace Cerberus {
 	}
 
 	void Mesh::SetupMesh() {
-		glGenVertexArrays(1, &m_VAO);
-		glGenBuffers(1, &m_VBO);
-		glGenBuffers(1, &m_EBO);
+		glGenVertexArrays(1, &VAO_);
+		glGenBuffers(1, &VBO_);
+		glGenBuffers(1, &EBO_);
 
-		glBindVertexArray(m_VAO);
-		glBindBuffer(GL_ARRAY_BUFFER, m_VBO);
+		glBindVertexArray(VAO_);
+		glBindBuffer(GL_ARRAY_BUFFER, VBO_);
 		glBufferData(GL_ARRAY_BUFFER, m_Vertices.size() * sizeof(Vertex), &m_Vertices[0], GL_STATIC_DRAW);
 
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_EBO);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO_);
 		glBufferData(GL_ELEMENT_ARRAY_BUFFER, m_Indices.size() * sizeof(unsigned int), &m_Indices[0], GL_STATIC_DRAW);
 
 		glEnableVertexAttribArray(0);
@@ -64,7 +64,7 @@ namespace Cerberus {
 
 	void Mesh::Draw(Shader& shader) {
 		// Bind the VAO and draw the mesh
-		glBindVertexArray(m_VAO);
+		glBindVertexArray(VAO_);
 		glDrawElements(GL_TRIANGLES, static_cast<unsigned int>(m_Indices.size()), GL_UNSIGNED_INT, 0);  //Hard AF
 		glBindVertexArray(0);
 	}
