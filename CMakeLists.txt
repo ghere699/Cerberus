@@ -78,9 +78,29 @@ else()
     set(PLATFORM_GL_LIB GL)
 endif()
 
+# First try to find system GLFW
+find_package(PkgConfig QUIET)
+if (PkgConfig_FOUND)
+    pkg_check_modules(GLFW3 QUIET glfw3)
+endif()
+
+if (GLFW3_FOUND)
+    message(STATUS "Using system-installed GLFW")
+    include_directories(${GLFW3_INCLUDE_DIRS})
+    target_link_libraries(Cerberus PRIVATE ${GLFW3_LIBRARIES})
+else()
+    message(STATUS "Using vendor GLFW")
+    if (WIN32)
+        # Windows vendor lib
+        target_link_libraries(Cerberus PRIVATE glfw3.lib)
+    else()
+        # Linux vendor lib (assume you have libglfw.a or .so in vendor)
+        target_link_libraries(Cerberus PRIVATE glfw)
+    endif()
+endif()
+
 target_link_libraries(Cerberus
     PRIVATE
-    glfw3.lib
     ${PLATFORM_GL_LIB}
     ${FBX_LIBRARY}
 )

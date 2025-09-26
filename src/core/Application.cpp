@@ -385,24 +385,6 @@ namespace Cerberus {
 				ImGui::Text(" -> ");
 				ImGui::SameLine();
 				ImGui::SameLine();
-				if (ImGui::Button("Jump To")) {
-					const SceneObject& selectedObject = sceneObjects_[selectedObjectIndex_];
-					glm::vec3 localSize = selectedObject.mesh->boundingBoxMax_ - selectedObject.mesh->boundingBoxMin_;
-					glm::vec3 worldSize = localSize * selectedObject.scale;
-					glm::vec3 localCenter = (selectedObject.mesh->boundingBoxMin_ + selectedObject.mesh->boundingBoxMax_) / 2.0f;
-					glm::vec3 worldCenter = selectedObject.position + (localCenter * selectedObject.scale);
-					float longestSide = std::max({ worldSize.x, worldSize.y, worldSize.z });
-					float fovRadians = glm::radians(camera_->Zoom);
-					float idealDistance = (longestSide * 0.5f) / tan(fovRadians * 0.5f);
-					idealDistance *= 1.5f;
-					const float maxFocusDistance = 50.0f;
-					float finalDistance = std::min(idealDistance, maxFocusDistance);
-					const float minFocusDistance = 2.0f;
-					finalDistance = std::max(finalDistance, minFocusDistance);
-					glm::vec3 direction = glm::normalize(glm::vec3(0.5f, 0.4f, 1.0f));
-					glm::vec3 newCameraPos = worldCenter - direction * finalDistance; 
-					camera_->SetPositionAndTarget(newCameraPos, worldCenter);
-				}
 				ImGui::Text("Model Material");
 
 				ImGui::ColorEdit3("Model Color", glm::value_ptr(selectedObject.color));
