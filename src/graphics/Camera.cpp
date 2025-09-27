@@ -25,6 +25,10 @@ namespace Cerberus {
 			Position -= Right * velocity;
 		if (direction == RIGHT)
 			Position += Right * velocity;
+		if (direction == UP)
+			Position += WorldUp * velocity;
+		if (direction == DOWN)
+			Position -= WorldUp * velocity;
 	}
 
 	void Camera::ProcessMouseMovement(float xoffset, float yoffset, bool constrainPitch) {
@@ -44,8 +48,7 @@ namespace Cerberus {
 		updateCameraVectors();
 	}
 
-	void Camera::SetPositionAndTarget(const glm::vec3& position, const glm::vec3& target)
-	{
+	void Camera::SetPositionAndTarget(const glm::vec3& position, const glm::vec3& target) {
 		Position = position;
 		glm::vec3 direction = glm::normalize(target - position);
 		Yaw = glm::degrees(atan2(direction.z, direction.x));

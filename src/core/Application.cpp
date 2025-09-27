@@ -56,8 +56,6 @@ namespace Cerberus {
 
 		IMGUI_CHECKVERSION();
 		ImGui::CreateContext();
-		ImGui::GetIO();
-		ImGui::StyleColorsDark();
 		ImGui_ImplGlfw_InitForOpenGL(window_->GetNativeWindow(), true);
 		ImGui_ImplOpenGL3_Init("#version 330");
 	}
@@ -83,6 +81,8 @@ namespace Cerberus {
 			if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) camera_->ProcessKeyboard(BACKWARD, deltaTime);
 			if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) camera_->ProcessKeyboard(LEFT, deltaTime);
 			if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) camera_->ProcessKeyboard(RIGHT, deltaTime);
+			if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) camera_->ProcessKeyboard(UP, deltaTime);
+			if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) camera_->ProcessKeyboard(DOWN, deltaTime);
 		}
 	}
 

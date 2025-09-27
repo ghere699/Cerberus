@@ -9,8 +9,7 @@ uniform vec3 u_lightColor;
 uniform vec3 u_lightPos;
 uniform vec3 u_viewPos;
 
-// --- ADD THIS UNIFORM ---
-uniform vec3 u_objectColor; // The dynamic color from the UI
+uniform vec3 u_objectColor;
 uniform float u_shininess;
 uniform float u_ambientStrength;
 uniform float u_specularStrength;
@@ -27,15 +26,15 @@ void main()
         // --- Lighting calculations ---
         vec3 ambient = u_ambientStrength * u_lightColor;
         
-        // --- Diffuse Calculation (MODIFIED) ---
+        // --- Diffuse Calculation ---
         vec3 norm = normalize(Normal);
         vec3 lightDir = normalize(u_lightPos - FragPos);
         float diff = max(dot(norm, lightDir), 0.0);
-        float diffuseStrength = 0.8; // <-- ADD THIS: Reduce base brightness to 80%
+        float diffuseStrength = 0.8;
         vec3 diffuse = diffuseStrength * diff * u_lightColor;
 
-        // --- Specular Calculation (MODIFIED) ---
-        float specularStrength = 1.0; // <-- CHANGE THIS: Increase highlight strength from 0.5 to 1.0
+        // --- Specular Calculation ---
+        float specularStrength = 1.0;
         vec3 viewDir = normalize(u_viewPos - FragPos);
         vec3 reflectDir = reflect(-lightDir, norm);
         float spec = pow(max(dot(viewDir, reflectDir), 0.0), u_shininess);
