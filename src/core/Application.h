@@ -6,6 +6,7 @@
 #include "../graphics/Gizmo.h"
 #include "../graphics/Pivot.h"
 #include "../graphics/Grid.h"
+#include "../utils/FrameRate.h"
 #include "Window.h"
 #include <memory>
 #include <string>
@@ -29,7 +30,7 @@ struct SceneObject {
     float specularStrength;
     float ambientStrength;
 
-    SceneObject() : position(0.0f), rotation(0.0f), scale(1.0f), color(1.0f), shininess(32.0f), ambientStrength(0.1f), specularStrength(1.0f) {}
+    SceneObject() : position(0.0f), rotation(0.0f), scale(1.0f), initialPosition(0.0f), color(1.0f), shininess(32.0f), ambientStrength(0.1f), specularStrength(1.0f) {}
 };
 
 namespace Cerberus {
@@ -75,8 +76,9 @@ namespace Cerberus {
         bool firstMouse_ = true;
 
         std::string pathToLoad_;
-        bool limitFps_ = true;
+
         float maxFps_ = 144.0f;
+        std::unique_ptr<FrameRateLimiter> frameRateLimiter_;
 
         ControlMode controlMode_;
         int prevEscapeKeyState_;

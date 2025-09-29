@@ -82,7 +82,7 @@ list(APPEND PROJECT_SOURCES ${IMGUI_SOURCES})
 
 
 # --- Define the Executable Target ---
-add_executable(Cerberus ${PROJECT_SOURCES})
+add_executable(Cerberus ${PROJECT_SOURCES} "src/utils/FrameRate.h" "src/utils/FrameRate.cpp")
 
 
 # --- Configure Target Properties ---

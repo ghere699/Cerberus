@@ -15,11 +15,7 @@
 #include <gtc/matrix_transform.hpp>
 #include <gtc/type_ptr.hpp>
 
-#include <chrono>
-#include <thread>
-#include <gtc/type_ptr.hpp>
 
-// Static instance pointer for C-style callbacks
 static Cerberus::Application* s_Instance = nullptr;
 
 void drop_callback(GLFWwindow* window, int count, const char* paths[])
@@ -28,7 +24,6 @@ void drop_callback(GLFWwindow* window, int count, const char* paths[])
 		s_Instance->QueueModelLoad(paths[0]);
 	}
 }
-
 
 namespace Cerberus {
 
@@ -48,6 +43,7 @@ namespace Cerberus {
 		gizmo_ = std::make_unique<Gizmo>();
 		pivotVisualizer_ = std::make_unique<PivotVisualizer>();
 		grid_ = std::make_unique<Grid>();
+		frameRateLimiter_ = std::make_unique<FrameRateLimiter>(maxFps_);
 
 		glfwSetInputMode(window_->GetNativeWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 		glfwSetDropCallback(window_->GetNativeWindow(), drop_callback);
@@ -334,7 +330,7 @@ namespace Cerberus {
 					}
 				}
 
-				//thx copilot
+				//thx copilot		
 				if (deleteRequest && isObjectValid()) {
 					sceneObjects_.erase(sceneObjects_.begin() + selectedObjectIndex_);
 					if (sceneObjects_.empty()) {
@@ -354,9 +350,10 @@ namespace Cerberus {
 
 			ImGui::Separator();
 			ImGui::Text("Framerate: %.1f FPS", ImGui::GetIO().Framerate);
-			ImGui::Checkbox("Limit Framerate", &limitFps_);
-			if (limitFps_) {
-				ImGui::SliderFloat("Max FPS", &maxFps_, 30.0f, 240.0f);
+			float oldMaxFps = maxFps_;
+			ImGui::SliderFloat("Max FPS", &maxFps_, 30.0f, 240.0f);
+			if (oldMaxFps != maxFps_) {
+				frameRateLimiter_->SetTargetFPS(maxFps_);
 			}
 			ImGui::Separator();
 			ImGui::Text("Camera Settings");
@@ -384,7 +381,24 @@ namespace Cerberus {
 				ImGui::SameLine();
 				ImGui::Text(" -> ");
 				ImGui::SameLine();
-				ImGui::SameLine();
+				if (ImGui::Button("Jump To")) {
+					const SceneObject& selectedObject = sceneObjects_[selectedObjectIndex_];
+					glm::vec3 localSize = selectedObject.mesh->boundingBoxMax_ - selectedObject.mesh->boundingBoxMin_;
+					glm::vec3 worldSize = localSize * selectedObject.scale;
+					glm::vec3 localCenter = (selectedObject.mesh->boundingBoxMin_ + selectedObject.mesh->boundingBoxMax_) / 2.0f;
+					glm::vec3 worldCenter = selectedObject.position + (localCenter * selectedObject.scale);
+					float longestSide = std::max(std::max(worldSize.x, worldSize.y), worldSize.z);
+					float fovRadians = glm::radians(camera_->Zoom);
+					float idealDistance = (longestSide * 0.5f) / tan(fovRadians * 0.5f);
+					idealDistance *= 1.5f;
+					const float maxFocusDistance = 50.0f;
+					float finalDistance = std::min(idealDistance, maxFocusDistance);
+					const float minFocusDistance = 2.0f;
+					finalDistance = std::max(finalDistance, minFocusDistance);
+					glm::vec3 direction = glm::normalize(glm::vec3(0.5f, 0.4f, 1.0f));
+					glm::vec3 newCameraPos = worldCenter - direction * finalDistance;
+					camera_->SetPositionAndTarget(newCameraPos, worldCenter);
+				}
 				ImGui::Text("Model Material");
 
 				ImGui::ColorEdit3("Model Color", glm::value_ptr(selectedObject.color));
@@ -448,15 +462,8 @@ namespace Cerberus {
 
 			Render();
 
-			if (limitFps_) {
-				float frameEndTime = static_cast<float>(glfwGetTime());
-				float workTime = frameEndTime - currentFrame;
-				float targetFrameTime = 1.0f / maxFps_;
-				if (workTime < targetFrameTime) {
-					auto sleepDuration = std::chrono::microseconds(static_cast<long long>((targetFrameTime - workTime) * 1000000.0f));
-					std::this_thread::sleep_for(sleepDuration);
-				}
-			}
+			frameRateLimiter_->Sleep();
+
 			window_->SwapBuffersAndPollEvents();
 		}
 	}
