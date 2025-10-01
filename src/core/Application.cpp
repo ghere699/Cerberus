@@ -30,29 +30,30 @@ namespace Cerberus {
 	Application::Application()
 	{
 		s_Instance = this;
-		prevEscapeKeyState_ = GLFW_RELEASE;
+		selectedEntity = 0;
+		prevEscapeKeyState = GLFW_RELEASE;
 
 		if (!glfwInit()) {
 			throw std::runtime_error("Failed to initialize GLFW");
 		}
 
-		window_ = std::make_unique<Window>(800, 600, "Cerberus Project");
-		camera_ = std::make_unique<Camera>(glm::vec3(0.0f, 0.0f, 3.0f));
-		shader_ = std::make_unique<Shader>("res/shaders/simple.vert", "res/shaders/simple.frag");
-		normalsShader_ = std::make_unique<Shader>("res/shaders/normals.vert", "res/shaders/normals.frag");
-		gizmo_ = std::make_unique<Gizmo>();
-		pivotVisualizer_ = std::make_unique<PivotVisualizer>();
-		grid_ = std::make_unique<Grid>();
-		frameRateLimiter_ = std::make_unique<FrameRateLimiter>(maxFps_);
+		window = std::make_unique<Window>(800, 600, "Cerberus Project");
+		camera = std::make_unique<Camera>(glm::vec3(0.0f, 0.0f, 3.0f));
+		shader = std::make_unique<Shader>("res/shaders/simple.vert", "res/shaders/simple.frag");
+		normalsShader = std::make_unique<Shader>("res/shaders/normals.vert", "res/shaders/normals.frag");
+		gizmo = std::make_unique<Gizmo>();
+		pivotVisualizer = std::make_unique<PivotVisualizer>();
+		grid = std::make_unique<Grid>();
+		frameRateLimiter = std::make_unique<FrameRateLimiter>(maxFps);
 
-		glfwSetInputMode(window_->GetNativeWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-		glfwSetDropCallback(window_->GetNativeWindow(), drop_callback);
-
+		glfwSetInputMode(window->GetNativeWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+		glfwSetDropCallback(window->GetNativeWindow(), drop_callback);
+		scene.CreateEntity();
 		LoadDefaultModel();
 
 		IMGUI_CHECKVERSION();
 		ImGui::CreateContext();
-		ImGui_ImplGlfw_InitForOpenGL(window_->GetNativeWindow(), true);
+		ImGui_ImplGlfw_InitForOpenGL(window->GetNativeWindow(), true);
 		ImGui_ImplOpenGL3_Init("#version 330");
 	}
 
@@ -64,21 +65,21 @@ namespace Cerberus {
 	}
 
 	void Application::ProcessInput(float deltaTime) {
-		GLFWwindow* window = window_->GetNativeWindow();
+		GLFWwindow* window = this->window->GetNativeWindow();
 
 		int currentEscapeState = glfwGetKey(window, GLFW_KEY_ESCAPE);
-		if (currentEscapeState == GLFW_RELEASE && prevEscapeKeyState_ == GLFW_PRESS) {
-			controlMode_ = (controlMode_ == ControlMode::Camera) ? ControlMode::UI : ControlMode::Camera;
+		if (currentEscapeState == GLFW_RELEASE && prevEscapeKeyState == GLFW_PRESS) {
+			controlMode = (controlMode == ControlMode::Camera) ? ControlMode::UI : ControlMode::Camera;
 		}
-		prevEscapeKeyState_ = currentEscapeState;
+		prevEscapeKeyState = currentEscapeState;
 
-		if (controlMode_ == ControlMode::Camera) {
-			if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) camera_->ProcessKeyboard(FORWARD, deltaTime);
-			if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) camera_->ProcessKeyboard(BACKWARD, deltaTime);
-			if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) camera_->ProcessKeyboard(LEFT, deltaTime);
-			if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) camera_->ProcessKeyboard(RIGHT, deltaTime);
-			if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) camera_->ProcessKeyboard(UP, deltaTime);
-			if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) camera_->ProcessKeyboard(DOWN, deltaTime);
+		if (controlMode == ControlMode::Camera) {
+			if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) camera->ProcessKeyboard(FORWARD, deltaTime);
+			if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) camera->ProcessKeyboard(BACKWARD, deltaTime);
+			if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) camera->ProcessKeyboard(LEFT, deltaTime);
+			if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) camera->ProcessKeyboard(RIGHT, deltaTime);
+			if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) camera->ProcessKeyboard(UP, deltaTime);
+			if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) camera->ProcessKeyboard(DOWN, deltaTime);
 		}
 	}
 
@@ -104,35 +105,7 @@ namespace Cerberus {
 			return;
 		}
 
-		if (newMesh) {
-			SceneObject newObject;
-			newObject.mesh = std::move(newMesh);
-			newObject.name = path.substr(path.find_last_of("/\\") + 1);
-			newObject.filePath = path;
-			glm::vec3 spawnPosition(0.0f);
-			if (!sceneObjects_.empty()) {
-				const SceneObject& lastObject = sceneObjects_.back();
-				float padding = 2.0f;
-				spawnPosition.x = lastObject.position.x +
-					lastObject.mesh->boundingRadius_ * lastObject.scale.x +
-					newObject.mesh->boundingRadius_ * newObject.scale.x +
-					padding;
-			}
-
-			newObject.position = spawnPosition;
-			newObject.initialPosition = spawnPosition;
-
-			sceneObjects_.push_back(std::move(newObject));
-			selectedObjectIndex_ = sceneObjects_.size() - 1;
-
-			pivotVisualizer_->UpdateSize(sceneObjects_.back().mesh->boundingRadius_);
-
-			std::cout << "Successfully added " << sceneObjects_.back().name << " to the scene." << std::endl;
-		}
-
-		else {
-			std::cerr << "Failed to load model from path: " << path << std::endl;
-		}
+		CreateSceneObjectFromMesh(std::move(newMesh), path.substr(path.find_last_of("/\\") + 1), path);
 	}
 
 	void Application::LoadDefaultModel() {
@@ -140,137 +113,127 @@ namespace Cerberus {
 
 		const char* data = Cerberus::DefaultAssets::CubeObj.c_str();
 		size_t size = Cerberus::DefaultAssets::CubeObj.length();
-
 		std::unique_ptr<Mesh> defaultMesh = ObjLoader::LoadModelFromMemory(data, size);
-
-		if (defaultMesh) {
-			SceneObject newObject;
-			newObject.mesh = std::move(defaultMesh);
-			newObject.name = "Default Cube";
-			newObject.filePath = "Internal Memory";
-
-			sceneObjects_.push_back(std::move(newObject));
-			selectedObjectIndex_ = 0;
-
-			pivotVisualizer_->UpdateSize(sceneObjects_.back().mesh->boundingRadius_);
-			std::cout << "Default model loaded successfully." << std::endl;
-		}
-		else {
-			std::cerr << "Failed to load default model from memory." << std::endl;
-		}
+		CreateSceneObjectFromMesh(std::move(defaultMesh), "Default Cube", "Internal Memory");
 	}
 
 	void Application::UpdateWindowState() {
-		if (!pathToLoad_.empty()) {
-			LoadModelFromFile(pathToLoad_);
-			pathToLoad_.clear();
+		if (!pathToLoad.empty()) {
+			LoadModelFromFile(pathToLoad);
+			pathToLoad.clear();
 		}
 
-		if (window_->ShouldClose()) {
-			isRunning_ = false;
+		if (window->ShouldClose()) {
+			isRunning = false;
 		}
 	}
 
 	void Application::HandleInput() {
 		static ImGuiIO& io = ImGui::GetIO();
-		ProcessInput(deltaTime_);
+		ProcessInput(deltaTime);
 
-		bool isCameraActive = (controlMode_ == ControlMode::Camera) && !io.WantCaptureMouse;
+		bool isCameraActive = (controlMode == ControlMode::Camera) && !io.WantCaptureMouse;
 
-		if (controlMode_ == ControlMode::Camera) {
-			glfwSetInputMode(window_->GetNativeWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+		if (controlMode == ControlMode::Camera) {
+			glfwSetInputMode(window->GetNativeWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 			double xpos, ypos;
-			glfwGetCursorPos(window_->GetNativeWindow(), &xpos, &ypos);
-			if (firstMouse_) {
-				lastX_ = xpos; lastY_ = ypos; firstMouse_ = false;
+			glfwGetCursorPos(window->GetNativeWindow(), &xpos, &ypos);
+			if (firstMouse) {
+				lastX = xpos; lastY = ypos; firstMouse = false;
 			}
-			float xoffset = xpos - lastX_;
-			float yoffset = lastY_ - ypos;
-			lastX_ = xpos; lastY_ = ypos;
-			camera_->ProcessMouseMovement(xoffset, yoffset);
+			float xoffset = xpos - lastX;
+			float yoffset = lastY - ypos;
+			lastX = xpos; lastY = ypos;
+			camera->ProcessMouseMovement(xoffset, yoffset);
 		}
 		else {
-			glfwSetInputMode(window_->GetNativeWindow(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-			firstMouse_ = true;
+			glfwSetInputMode(window->GetNativeWindow(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+			firstMouse = true;
 		}
 	}
 
 	void Application::Render() {
-		float aspectRatio = static_cast<float>(window_->GetWidth()) / static_cast<float>(window_->GetHeight());
-		glm::mat4 projection = glm::perspective(glm::radians(camera_->Zoom), aspectRatio, 0.1f, 1000.0f);
-		glm::mat4 view = camera_->GetViewMatrix();
+		float aspectRatio = static_cast<float>(window->GetWidth()) / static_cast<float>(window->GetHeight());
+		glm::mat4 projection = glm::perspective(glm::radians(camera->Zoom), aspectRatio, 0.1f, 1000.0f);
+		glm::mat4 view = camera->GetViewMatrix();
 
 		glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		grid_->Draw(view, projection, camera_->Position);
+		grid->Draw(view, projection, camera->Position);
 
-		for (int i = 0; i < sceneObjects_.size(); ++i) {
-			const auto& sceneObject = sceneObjects_[i];
+		glm::mat4 selectedModelMatrix;
+		bool hasSelectedEntity = false;
+
+		for (Entity i = 0; i < scene.GetEntityCount(); ++i) {
+			auto& meshComp = scene.GetComponent<MeshComponent>(i);
+			if (!meshComp.mesh) continue;
+			auto& transform = scene.GetComponent<TransformComponent>(i);
+			auto& material = scene.GetComponent<MaterialComponent>(i);
 
 			glm::mat4 model = glm::mat4(1.0f);
-			model = glm::translate(model, sceneObject.position);
-			model = glm::rotate(model, glm::radians(sceneObject.rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
-			model = glm::rotate(model, glm::radians(sceneObject.rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
-			model = glm::rotate(model, glm::radians(sceneObject.rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
-			model = glm::scale(model, sceneObject.scale);
+			model = glm::translate(model, transform.position);
+			model = glm::rotate(model, glm::radians(transform.rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
+			model = glm::rotate(model, glm::radians(transform.rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
+			model = glm::rotate(model, glm::radians(transform.rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
+			model = glm::scale(model, transform.scale);
 
-			if (i == selectedObjectIndex_) {
-				if (enableCulling_) glEnable(GL_CULL_FACE); else glDisable(GL_CULL_FACE);
-				if (renderMode_ == 0) glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-				else if (renderMode_ == 1) glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+			if (i == selectedEntity) {
+				if (enableCulling) glEnable(GL_CULL_FACE); else glDisable(GL_CULL_FACE);
+				if (renderMode == 0) glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+				else if (renderMode == 1) glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 				else { glPolygonMode(GL_FRONT_AND_BACK, GL_POINT); glPointSize(3.0f); }
+
+				selectedModelMatrix = model;
+				hasSelectedEntity = true;
 			}
 			else {
 				glDisable(GL_CULL_FACE);
 				glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 			}
 
-			shader_->Use();
-			shader_->SetVec3("u_objectColor", sceneObject.color);
-			shader_->SetFloat("u_shininess", sceneObject.shininess);
-			shader_->SetFloat("u_specularStrength", sceneObject.specularStrength);
-			shader_->SetFloat("u_ambientStrength", sceneObject.ambientStrength);
+			shader->Use();
+			shader->SetVec3("u_objectColor", material.color);
+			shader->SetFloat("u_shininess", material.shininess);
+			shader->SetFloat("u_specularStrength", material.specularStrength);
+			shader->SetFloat("u_ambientStrength", material.ambientStrength);
 
-			shader_->SetVec3("u_lightColor", 1.0f, 1.0f, 1.0f);
-			shader_->SetVec3("u_lightPos", camera_->Position);
-			shader_->SetVec3("u_viewPos", camera_->Position);
-			shader_->SetMat4("u_Model", model);
-			shader_->SetMat4("u_View", view);
-			shader_->SetMat4("u_Projection", projection);
-			sceneObject.mesh->Draw(*shader_);
+			shader->SetVec3("u_lightColor", 1.0f, 1.0f, 1.0f);
+			shader->SetVec3("u_lightPos", camera->Position);
+			shader->SetVec3("u_viewPos", camera->Position);
+			shader->SetMat4("u_Model", model);
+			shader->SetMat4("u_View", view);
+			shader->SetMat4("u_Projection", projection);
+			meshComp.mesh->Draw(*shader);
 		}
 
-		if (isObjectValid()) {
-			const SceneObject& selectedObject = sceneObjects_[selectedObjectIndex_];
+		glDisable(GL_CULL_FACE);
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
-			glm::mat4 selectedModelMatrix = glm::mat4(1.0f);
-			selectedModelMatrix = glm::translate(selectedModelMatrix, selectedObject.position);
-			selectedModelMatrix = glm::rotate(selectedModelMatrix, glm::radians(selectedObject.rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
-			selectedModelMatrix = glm::rotate(selectedModelMatrix, glm::radians(selectedObject.rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
-			selectedModelMatrix = glm::rotate(selectedModelMatrix, glm::radians(selectedObject.rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
-			selectedModelMatrix = glm::scale(selectedModelMatrix, selectedObject.scale);
-
-			if (showPivot_) {
-				pivotVisualizer_->Draw(selectedModelMatrix, view, projection);
-			}
-			if (showFaceNormals_) {
-				normalsShader_->Use();
-				normalsShader_->SetMat4("u_Model", selectedModelMatrix);
-				normalsShader_->SetMat4("u_View", view);
-				normalsShader_->SetMat4("u_Projection", projection);
-				selectedObject.mesh->DrawFaceNormals();
-			}
-			if (showVertexNormals_) {
-				normalsShader_->Use();
-				normalsShader_->SetMat4("u_Model", selectedModelMatrix);
-				normalsShader_->SetMat4("u_View", view);
-				normalsShader_->SetMat4("u_Projection", projection);
-				selectedObject.mesh->DrawVertexNormals();
+		if (hasSelectedEntity) {
+			auto& meshComp = scene.GetComponent<MeshComponent>(selectedEntity);
+			if (meshComp.mesh) {
+				if (showPivot) {
+					pivotVisualizer->Draw(selectedModelMatrix, view, projection);
+				}
+				if (showFaceNormals) {
+					normalsShader->Use();
+					normalsShader->SetMat4("u_Model", selectedModelMatrix);
+					normalsShader->SetMat4("u_View", view);
+					normalsShader->SetMat4("u_Projection", projection);
+					meshComp.mesh->DrawFaceNormals();
+				}
+				if (showVertexNormals) {
+					normalsShader->Use();
+					normalsShader->SetMat4("u_Model", selectedModelMatrix);
+					normalsShader->SetMat4("u_View", view);
+					normalsShader->SetMat4("u_Projection", projection);
+					meshComp.mesh->DrawVertexNormals();
+				}
 			}
 		}
 
-		gizmo_->Draw(view, window_->GetWidth(), window_->GetHeight());
+		gizmo->Draw(view, window->GetWidth(), window->GetHeight());
 
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -280,151 +243,151 @@ namespace Cerberus {
 		if (ImGui::BeginMainMenuBar()) {
 			if (ImGui::BeginMenu("File")) {
 				if (ImGui::MenuItem("Model Info")) {
-					showModelInfoWindow_ = true;
+					showModelInfoWindow = true;
 				}
 				ImGui::Separator();
 				if (ImGui::MenuItem("Quit", "ESC")) {
-					isRunning_ = false;
+					isRunning = false;
 				}
 				ImGui::EndMenu();
 			}
 			ImGui::EndMainMenuBar();
 		}
 
-		if (showModelInfoWindow_) {
-			if (ImGui::Begin("Model Information", &showModelInfoWindow_)) {
-				if (isObjectValid()) {
-					const SceneObject& selectedObject = sceneObjects_[selectedObjectIndex_];
+		if (showModelInfoWindow) {
+			if (ImGui::Begin("Model Information", &showModelInfoWindow)) {
 
-					ImGui::Text("File Path: %s", selectedObject.filePath.c_str());
-					ImGui::Separator();
-					ImGui::Text("Vertex Count: %zu", selectedObject.mesh->m_Vertices.size());
-					ImGui::Text("Index Count: %zu", selectedObject.mesh->m_Indices.size());
-					ImGui::Text("Triangle Count: %zu", selectedObject.mesh->m_Indices.size() / 3);
+				if (selectedEntity > 0 && selectedEntity < scene.GetEntityCount()) {
+
+					const auto& tag = scene.GetComponent<TagComponent>(selectedEntity);
+					const auto& meshComp = scene.GetComponent<MeshComponent>(selectedEntity);
+
+					if (meshComp.mesh) {
+						ImGui::Text("File Path: %s", tag.filePath.c_str());
+						ImGui::Separator();
+						ImGui::Text("Vertex Count: %zu", meshComp.mesh->m_Vertices.size());
+						ImGui::Text("Index Count: %zu", meshComp.mesh->m_Indices.size());
+						ImGui::Text("Triangle Count: %zu", meshComp.mesh->m_Indices.size() / 3);
+					}
+					else {
+						ImGui::Text("Selected entity has no mesh data.");
+					}
 				}
 				else {
 					ImGui::Text("No object selected.");
 				}
 
 				ImGui::Separator();
-				ImGui::Text("Camera Position: (%.2f, %.2f, %.2f)", camera_->Position.x, camera_->Position.y, camera_->Position.z);
-
+				ImGui::Text("Camera Position: (%.2f, %.2f, %.2f)", camera->Position.x, camera->Position.y, camera->Position.z);
 			}
 			ImGui::End();
 		}
 
-
 		if (ImGui::Begin("Cerberus")) {
 			if (ImGui::BeginChild("Hierarchy", ImVec2(ImGui::GetContentRegionAvail().x, 200), true)) {
-				if (sceneObjects_.empty()) {
+				if (scene.GetEntityCount() <= 1) {
 					ImGui::Text("No objects in scene.");
 				}
 				else {
-					for (int i = 0; i < sceneObjects_.size(); ++i) {
-						if (ImGui::Selectable(sceneObjects_[i].name.c_str(), selectedObjectIndex_ == i)) {
-							selectedObjectIndex_ = i;
-							if (selectedObjectIndex_ < sceneObjects_.size()) {
-								pivotVisualizer_->UpdateSize(sceneObjects_[i].mesh->boundingRadius_);
-							}
+					for (Entity i = 1; i < scene.GetEntityCount(); ++i) {
+						auto& tag = scene.GetComponent<TagComponent>(i);
+						if (ImGui::Selectable(tag.name.c_str(), selectedEntity == i)) {
+							selectedEntity = i;
+							auto& meshComp = scene.GetComponent<MeshComponent>(i);
+							if (meshComp.mesh) pivotVisualizer->UpdateSize(meshComp.mesh->boundingRadius_);
 						}
 					}
-				}
-
-				//thx copilot		
-				if (deleteRequest && isObjectValid()) {
-					sceneObjects_.erase(sceneObjects_.begin() + selectedObjectIndex_);
-					if (sceneObjects_.empty()) {
-						selectedObjectIndex_ = -1;
-					}
-					else if (selectedObjectIndex_ >= sceneObjects_.size()) {
-						selectedObjectIndex_ = sceneObjects_.size() - 1;
-					}
-					deleteRequest = false;
 				}
 			}
 			ImGui::EndChild();
 
-			if (ImGui::Button("Destroy", ImVec2(120, 20))) {
-				deleteRequest = true;
+			if (ImGui::Button("Destroy") && selectedEntity > 0) {
+				scene.DestroyEntity(selectedEntity);
+				selectedEntity = 0;
 			}
 
 			ImGui::Separator();
 			ImGui::Text("Framerate: %.1f FPS", ImGui::GetIO().Framerate);
-			float oldMaxFps = maxFps_;
-			ImGui::SliderFloat("Max FPS", &maxFps_, 30.0f, 240.0f);
-			if (oldMaxFps != maxFps_) {
-				frameRateLimiter_->SetTargetFPS(maxFps_);
+			float oldMaxFps = maxFps;
+			ImGui::SliderFloat("Max FPS", &maxFps, 30.0f, 240.0f);
+			if (oldMaxFps != maxFps) {
+				frameRateLimiter->SetTargetFPS(maxFps);
 			}
 			ImGui::Separator();
 			ImGui::Text("Camera Settings");
-			ImGui::SliderFloat("Movement Speed", &camera_->MovementSpeed, 1.0f, 100.0f);
-			if (camera_->MovementSpeed > 100)
-				camera_->MovementSpeed = 100;
+			ImGui::SliderFloat("Movement Speed", &camera->MovementSpeed, 1.0f, 100.0f);
+			if (camera->MovementSpeed > 100)
+				camera->MovementSpeed = 100;
 			ImGui::Text("Render Settings");
 			ImGui::Separator();
-			ImGui::RadioButton("Solid", &renderMode_, 0); ImGui::SameLine();
-			ImGui::RadioButton("Wireframe", &renderMode_, 1); ImGui::SameLine();
-			ImGui::RadioButton("Points", &renderMode_, 2);
+			ImGui::RadioButton("Solid", &renderMode, 0); ImGui::SameLine();
+			ImGui::RadioButton("Wireframe", &renderMode, 1); ImGui::SameLine();
+			ImGui::RadioButton("Points", &renderMode, 2);
 			ImGui::Text("View Settings");
 			ImGui::Separator();
-			ImGui::Checkbox("Enable Culling", &enableCulling_);
-			ImGui::Checkbox("Show Face Normals", &showFaceNormals_);
+			ImGui::Checkbox("Enable Culling", &enableCulling);
+			ImGui::Checkbox("Show Face Normals", &showFaceNormals);
 			ImGui::SameLine();
-			ImGui::Checkbox("Show Vertex Normals", &showVertexNormals_);
-			ImGui::Checkbox("Show Model Pivot", &showPivot_);
+			ImGui::Checkbox("Show Vertex Normals", &showVertexNormals);
+			ImGui::Checkbox("Show Model Pivot", &showPivot);
 			ImGui::Separator();
 
-			if (isObjectValid()) {
-				SceneObject& selectedObject = sceneObjects_[selectedObjectIndex_];
+			if (selectedEntity > 0) {
+				auto& tag = scene.GetComponent<TagComponent>(selectedEntity);
+				auto& transform = scene.GetComponent<TransformComponent>(selectedEntity);
+				auto& material = scene.GetComponent<MaterialComponent>(selectedEntity);
+				auto& meshComp = scene.GetComponent<MeshComponent>(selectedEntity);
 
-				ImGui::Text("Editing: %s", selectedObject.name.c_str());
+				ImGui::Text("Editing: %s", tag.name.c_str());
 				ImGui::SameLine();
 				ImGui::Text(" -> ");
 				ImGui::SameLine();
 				if (ImGui::Button("Jump To")) {
-					const SceneObject& selectedObject = sceneObjects_[selectedObjectIndex_];
-					glm::vec3 localSize = selectedObject.mesh->boundingBoxMax_ - selectedObject.mesh->boundingBoxMin_;
-					glm::vec3 worldSize = localSize * selectedObject.scale;
-					glm::vec3 localCenter = (selectedObject.mesh->boundingBoxMin_ + selectedObject.mesh->boundingBoxMax_) / 2.0f;
-					glm::vec3 worldCenter = selectedObject.position + (localCenter * selectedObject.scale);
-					float longestSide = std::max(std::max(worldSize.x, worldSize.y), worldSize.z);
-					float fovRadians = glm::radians(camera_->Zoom);
+					const auto& selectedTransform = scene.GetComponent<TransformComponent>(selectedEntity);
+					const auto& selectedMeshComp = scene.GetComponent<MeshComponent>(selectedEntity);
+					glm::vec3 localSize = selectedMeshComp.mesh->boundingBoxMax_ - selectedMeshComp.mesh->boundingBoxMin_;
+					glm::vec3 worldSize = localSize * selectedTransform.scale;
+					glm::vec3 localCenter = (selectedMeshComp.mesh->boundingBoxMin_ + selectedMeshComp.mesh->boundingBoxMax_) / 2.0f;
+					glm::vec3 worldCenter = selectedTransform.position + (localCenter * selectedTransform.scale);
+
+					float longestSide = std::max({ worldSize.x, worldSize.y, worldSize.z });
+					float fovRadians = glm::radians(camera->Zoom);
 					float idealDistance = (longestSide * 0.5f) / tan(fovRadians * 0.5f);
 					idealDistance *= 1.5f;
+
 					const float maxFocusDistance = 50.0f;
 					float finalDistance = std::min(idealDistance, maxFocusDistance);
 					const float minFocusDistance = 2.0f;
 					finalDistance = std::max(finalDistance, minFocusDistance);
+
 					glm::vec3 direction = glm::normalize(glm::vec3(0.5f, 0.4f, 1.0f));
 					glm::vec3 newCameraPos = worldCenter - direction * finalDistance;
-					camera_->SetPositionAndTarget(newCameraPos, worldCenter);
+
+					camera->SetPositionAndTarget(newCameraPos, worldCenter);
 				}
 				ImGui::Text("Model Material");
 
-				ImGui::ColorEdit3("Model Color", glm::value_ptr(selectedObject.color));
-				ImGui::SliderFloat("Shininess", &selectedObject.shininess, 2.0f, 256.0f);
-				ImGui::SliderFloat("Specular Strength", &selectedObject.specularStrength, 0.0f, 2.0f);
-				ImGui::SliderFloat("Ambient Strength", &selectedObject.ambientStrength, 0.0f, 1.0f);
-
+				ImGui::ColorEdit3("Model Color", glm::value_ptr(material.color));
+				ImGui::SliderFloat("Shininess", &material.shininess, 2.0f, 256.0f);
+				ImGui::SliderFloat("Specular Strength", &material.specularStrength, 0.0f, 2.0f);
+				ImGui::SliderFloat("Ambient Strength", &material.ambientStrength, 0.0f, 1.0f);
 				if (ImGui::Button("Reset Material")) {
-					SceneObject defaultMaterial;
-					selectedObject.color = defaultMaterial.color;
-					selectedObject.shininess = defaultMaterial.shininess;
-					selectedObject.specularStrength = defaultMaterial.specularStrength;
-					selectedObject.ambientStrength = defaultMaterial.ambientStrength;
+					auto& selectedMaterial = scene.GetComponent<MaterialComponent>(selectedEntity);
+					selectedMaterial = MaterialComponent{};
 				}
 
 				ImGui::Separator();
 				ImGui::Text("Model Transform");
-				ImGui::DragFloat3("Position", glm::value_ptr(selectedObject.position), 0.1f);
-				ImGui::SliderFloat3("Rotation", glm::value_ptr(selectedObject.rotation), -180.0f, 180.0f);
-				ImGui::DragFloat3("Scale", glm::value_ptr(selectedObject.scale), 0.05f);
-
+				ImGui::DragFloat3("Position", glm::value_ptr(transform.position), 0.1f);
+				ImGui::SliderFloat3("Rotation", glm::value_ptr(transform.rotation), -180.0f, 180.0f);
+				ImGui::DragFloat3("Scale", glm::value_ptr(transform.scale), 0.05f);
 				if (ImGui::Button("Reset Transform")) {
-					selectedObject.position = selectedObject.initialPosition;
-					selectedObject.rotation = glm::vec3(0.0f);
-					selectedObject.scale = glm::vec3(1.0f);
+					auto& selectedTransform = scene.GetComponent<TransformComponent>(selectedEntity);
+					selectedTransform.position = selectedTransform.initialPosition;
+					selectedTransform.rotation = glm::vec3(0.0f);
+					selectedTransform.scale = glm::vec3(1.0f);
 				}
+
 			}
 			else {
 				ImGui::Text("No object selected.");
@@ -433,22 +396,41 @@ namespace Cerberus {
 		ImGui::End();
 	}
 
-	bool Application::isObjectValid() const {
-		return selectedObjectIndex_ != -1 && selectedObjectIndex_ < sceneObjects_.size();
+	void Application::CreateSceneObjectFromMesh(std::unique_ptr<Mesh> mesh, const std::string& name, const std::string& path) {
+		if (!mesh) {
+			std::cerr << "Failed to create scene object from an invalid mesh." << std::endl;
+			return;
+		}
+
+		Entity newEntity = scene.CreateEntity(name);
+
+		auto& tag = scene.GetComponent<TagComponent>(newEntity);
+		tag.filePath = path;
+
+		auto& transform = scene.GetComponent<TransformComponent>(newEntity);
+		transform.position = glm::vec3(0.0f);
+		transform.initialPosition = glm::vec3(0.0f);
+
+		auto& meshComp = scene.GetComponent<MeshComponent>(newEntity);
+		pivotVisualizer->UpdateSize(mesh->boundingRadius_);
+		meshComp.mesh = std::move(mesh);
+
+		selectedEntity = newEntity;
+		std::cout << "Successfully added '" << name << "' to the scene." << std::endl;
 	}
 
 	void Application::QueueModelLoad(const std::string& path) {
 		std::cout << "File dropped: " << path << std::endl;
-		pathToLoad_ = path;
+		pathToLoad = path;
 	}
 
 	void Application::Run() {
 		glEnable(GL_DEPTH_TEST);
 
-		while (isRunning_) {
+		while (isRunning) {
 			float currentFrame = static_cast<float>(glfwGetTime());
-			deltaTime_ = currentFrame - lastFrame_;
-			lastFrame_ = currentFrame;
+			deltaTime = currentFrame - lastFrame;
+			lastFrame = currentFrame;
 
 			UpdateWindowState();
 
@@ -462,9 +444,9 @@ namespace Cerberus {
 
 			Render();
 
-			frameRateLimiter_->Sleep();
+			frameRateLimiter->Sleep();
 
-			window_->SwapBuffersAndPollEvents();
+			window->SwapBuffersAndPollEvents();
 		}
 	}
 }

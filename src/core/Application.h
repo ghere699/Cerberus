@@ -7,6 +7,7 @@
 #include "../graphics/Pivot.h"
 #include "../graphics/Grid.h"
 #include "../utils/FrameRate.h"
+#include "Scene.h"
 #include "Window.h"
 #include <memory>
 #include <string>
@@ -15,22 +16,6 @@
 enum class ControlMode {
     Camera,
     UI
-};
-
-struct SceneObject {
-    std::string name;
-    std::string filePath;
-    std::unique_ptr<Cerberus::Mesh> mesh;
-    glm::vec3 position;
-    glm::vec3 rotation;
-    glm::vec3 scale;
-    glm::vec3 initialPosition;
-    glm::vec3 color;
-    float shininess;
-    float specularStrength;
-    float ambientStrength;
-
-    SceneObject() : position(0.0f), rotation(0.0f), scale(1.0f), initialPosition(0.0f), color(1.0f), shininess(32.0f), ambientStrength(0.1f), specularStrength(1.0f) {}
 };
 
 namespace Cerberus {
@@ -52,49 +37,42 @@ namespace Cerberus {
         void HandleInput();
         void Render();
         void UIRender();
-        bool isObjectValid() const;
+        void CreateSceneObjectFromMesh(std::unique_ptr<Mesh> mesh, const std::string& name, const std::string& path);
 
-        std::unique_ptr<Window> window_;
-        std::unique_ptr<Shader> shader_;
-        std::unique_ptr<Shader> normalsShader_;
-        std::unique_ptr<Mesh>   modelMesh_;
-        std::unique_ptr<Camera> camera_;
-        std::unique_ptr<Gizmo> gizmo_;
-        std::unique_ptr<PivotVisualizer> pivotVisualizer_;
-        std::unique_ptr<Grid> grid_;
+        // Core management
+        std::unique_ptr<Window> window;
+        std::unique_ptr<Shader> shader;
+        std::unique_ptr<Shader> normalsShader;
+        std::unique_ptr<Mesh>   modelMesh;
+        std::unique_ptr<Camera> camera;
+        std::unique_ptr<Gizmo> gizmo;
+        std::unique_ptr<PivotVisualizer> pivotVisualizer;
+        std::unique_ptr<Grid> grid;
+        std::unique_ptr<FrameRateLimiter> frameRateLimiter;
 
-        std::vector<SceneObject> sceneObjects_;
-        int selectedObjectIndex_ = -1;
+        Scene scene;
+        int selectedEntity = -1;
 
-        bool isRunning_ = true;
-
-        float deltaTime_ = 0.0f;
-        float lastFrame_ = 0.0f;
-
-        float lastX_ = 400;
-        float lastY_ = 300;
-        bool firstMouse_ = true;
-
-        std::string pathToLoad_;
-
-        float maxFps_ = 144.0f;
-        std::unique_ptr<FrameRateLimiter> frameRateLimiter_;
-
-        ControlMode controlMode_;
-        int prevEscapeKeyState_;
-
-        // Model transform variables
-        glm::vec3 modelPosition_;
-        glm::vec3 modelRotation_;
-        glm::vec3 modelScale_;
+        bool isRunning = true;
+        float deltaTime = 0.0f;
+        float lastFrame = 0.0f;
+        float lastX = 400;
+        float lastY = 300;
+        bool firstMouse = true;
+        std::string pathToLoad;
+        float maxFps = 144.0f;
+        ControlMode controlMode;
+        int prevEscapeKeyState;
+        glm::vec3 modelPosition;
+        glm::vec3 modelRotation;
+        glm::vec3 modelScale;
 
         bool deleteRequest = false;
-
-        bool showModelInfoWindow_ = false;
-        int renderMode_ = 0;
-        bool enableCulling_ = false;
-        bool showFaceNormals_ = false;
-        bool showVertexNormals_ = false;
-        bool showPivot_ = false;
+        bool showModelInfoWindow = false;
+        int renderMode = 0;
+        bool enableCulling = false;
+        bool showFaceNormals = false;
+        bool showVertexNormals = false;
+        bool showPivot = false;
     };
 }
