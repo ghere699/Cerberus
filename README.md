@@ -10,8 +10,8 @@ Cerberus is a lightweight cross-platform 3D model viewer written in modern C++ a
     *   `.fbx`
     *   `.stl`
 *   **Model:**
-    *   **Transform:** Real-time translation, rotation, and scaling.
-    *   **Material:** Adjust color, shininess, and other lighting properties.
+    *   **Transform:** Translation, rotation, and scaling.
+    *   **Material:** Change color, shininess, and other lighting properties.
     *   **Hierarchy:** Select and delete objects from the scene.
 *   **Rendering:**
     *   World and model pivot orientation with gizmos.
@@ -39,7 +39,7 @@ Cerberus is a lightweight cross-platform 3D model viewer written in modern C++ a
 	
 3.  **Run:**
 	* Now you should just do on your terminal ./Cerberus. If the window creation fails, try running with sudo ./Cerberus.
-
+---
 
 ### Building on Windows (with Visual Studio)
 
@@ -54,7 +54,7 @@ Cerberus is a lightweight cross-platform 3D model viewer written in modern C++ a
     *   Visual Studio will automatically detect `CMakeLists.txt` and configure the project.
 4.  **Build and Run:**
     *   Now you will just have to compile the program :)
-
+---
 
 ## Third-Party Libraries
 
