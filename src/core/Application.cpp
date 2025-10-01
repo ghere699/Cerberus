@@ -350,7 +350,7 @@ namespace Cerberus {
 					glm::vec3 localCenter = (selectedMeshComp.mesh->boundingBoxMin_ + selectedMeshComp.mesh->boundingBoxMax_) / 2.0f;
 					glm::vec3 worldCenter = selectedTransform.position + (localCenter * selectedTransform.scale);
 
-					float longestSide = std::max({ worldSize.x, worldSize.y, worldSize.z });
+					float longestSide = std::max(std::max(worldSize.x, worldSize.y), worldSize.z);
 					float fovRadians = glm::radians(camera->Zoom);
 					float idealDistance = (longestSide * 0.5f) / tan(fovRadians * 0.5f);
 					idealDistance *= 1.5f;
