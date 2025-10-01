@@ -61,7 +61,7 @@ jobs:
         sudo apt-get install -y \
         libx11-dev xorg-dev \
         libglu1-mesa libglu1-mesa-dev \
-        libgl1-mesa-glx libgl1-mesa-dev \
+        libgl1 libgl1-mesa-dev \
         libglfw3 libglfw3-dev \
         libglew-dev
       
@@ -88,9 +88,10 @@ jobs:
     - name: Upload Artifact
       uses: actions/upload-artifact@v4.6.2
       with:
-        path:
-          ${{ steps.strings.outputs.build-output-dir }}/x64-${{ matrix.build_type }}/*.exe
-          ${{ steps.strings.outputs.build-output-dir }}/x64-${{ matrix.build_type }}/*.dll
-          ${{ steps.strings.outputs.build-output-dir }}/x64-${{ matrix.build_type }}/Cerberus
-          ${{ steps.strings.outputs.build-output-dir }}/x64-${{ matrix.build_type }}/deps_
-          ${{ steps.strings.outputs.build-output-dir }}/x64-${{ matrix.build_type }}/res
+        name: Cerberus
+        path: |
+          ${{ steps.strings.outputs.build-output-dir }}/*.exe
+          ${{ steps.strings.outputs.build-output-dir }}/*.dll
+          ${{ steps.strings.outputs.build-output-dir }}/Cerberus
+          ${{ steps.strings.outputs.build-output-dir }}/deps_
+          ${{ steps.strings.outputs.build-output-dir }}/res
