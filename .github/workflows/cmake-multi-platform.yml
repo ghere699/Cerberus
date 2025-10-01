@@ -93,5 +93,5 @@ jobs:
           ${{ steps.strings.outputs.build-output-dir }}/*.exe
           ${{ steps.strings.outputs.build-output-dir }}/*.dll
           ${{ steps.strings.outputs.build-output-dir }}/Cerberus
-          ${{ steps.strings.outputs.build-output-dir }}/deps_
+          ${{ steps.strings.outputs.build-output-dir }}/_deps
           ${{ steps.strings.outputs.build-output-dir }}/res
