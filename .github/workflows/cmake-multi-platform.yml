@@ -88,7 +88,7 @@ jobs:
     - name: Upload Artifact
       uses: actions/upload-artifact@v4.6.2
       with:
-        name: Cerberus-${{ matrix.os }}-{{ matrix.cpp_compiler }}
+        name: Cerberus-${{ matrix.os }}-${{ matrix.cpp_compiler }}
         path: |
           ${{ steps.strings.outputs.build-output-dir }}/*.exe
           ${{ steps.strings.outputs.build-output-dir }}/*.dll
